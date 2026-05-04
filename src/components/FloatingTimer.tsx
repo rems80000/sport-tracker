@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Play, Pause, SkipForward, RotateCcw, Plus, Minus, Timer } from 'lucide-react'
 import { useTimer } from '../store/timerContext'
 import { formatDuration } from '../utils/storage'
@@ -10,19 +11,39 @@ function presetLabel(s: number) {
   return `${s / 60}m`
 }
 
+// ─── Horloge permanente ────────────────────────────────────────────────────────
+
+function Clock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const h = String(now.getHours()).padStart(2, '0')
+  const m = String(now.getMinutes()).padStart(2, '0')
+  const s = String(now.getSeconds()).padStart(2, '0')
+  return (
+    <span className="font-mono tabular-nums text-slate-500 flex-shrink-0" style={{ fontSize: '11px' }}>
+      {h}:{m}:{s}
+    </span>
+  )
+}
+
+// ─── FloatingTimer ─────────────────────────────────────────────────────────────
+
 export function FloatingTimer() {
   const { timerState, start, toggle, skip, adjust, reset } = useTimer()
   const { remaining, running, finished, total } = timerState
 
   const isActive = running || finished || remaining !== total
 
-  // ── Idle: compact preset bar ──────────────────────────────────────────────
+  // ── Idle: compact bar ──────────────────────────────────────────────────────
   if (!isActive) {
     return (
       <div className="fixed bottom-[60px] left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-700/40 pb-safe">
         <div className="max-w-2xl mx-auto px-3 py-2.5 flex items-center gap-2">
           <Timer size={14} className="text-slate-600 flex-shrink-0" />
-          <span className="text-slate-600 text-xs font-medium mr-1">Repos</span>
+          <span className="text-slate-600 font-medium flex-shrink-0" style={{ fontSize: '11px' }}>Repos</span>
           <div className="flex gap-1.5 flex-1 overflow-x-auto">
             {PRESETS.map(s => (
               <button
@@ -34,12 +55,13 @@ export function FloatingTimer() {
               </button>
             ))}
           </div>
+          <Clock />
         </div>
       </div>
     )
   }
 
-  // ── Active: large premium card ────────────────────────────────────────────
+  // ── Active: large premium card ─────────────────────────────────────────────
   const progress = total > 0 ? (total - remaining) / total : 0
 
   const timeColor = finished ? '#4ade80' : remaining <= 10 && running ? '#fb923c' : '#ffffff'
@@ -76,14 +98,17 @@ export function FloatingTimer() {
           className="h-full transition-all duration-1000"
           style={{
             width: `${progress * 100}%`,
-            background: finished
-              ? '#4ade80'
-              : `linear-gradient(to right, #6366f1, #8b5cf6)`,
+            background: finished ? '#4ade80' : 'linear-gradient(to right, #6366f1, #8b5cf6)',
           }}
         />
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 pt-3 pb-2">
+      <div className="max-w-2xl mx-auto px-4 pt-2 pb-2">
+        {/* Clock row */}
+        <div className="flex justify-end mb-1">
+          <Clock />
+        </div>
+
         {/* Big time display */}
         <div className="flex items-center justify-center mb-3">
           <span
@@ -100,24 +125,19 @@ export function FloatingTimer() {
 
         {/* Controls */}
         <div className="flex items-center justify-center gap-2.5">
-          {/* −15s */}
           <button
             onClick={() => adjust(-15)}
-            className="w-11 h-11 rounded-xl bg-slate-700/60 flex flex-col items-center justify-center active:scale-95 transition-transform gap-0"
+            className="w-11 h-11 rounded-xl bg-slate-700/60 flex flex-col items-center justify-center active:scale-95 transition-transform"
             aria-label="-15s"
           >
             <Minus size={13} className="text-slate-300" />
-            <span className="text-slate-500 text-[9px] leading-none mt-0.5">15s</span>
+            <span className="text-slate-500 leading-none mt-0.5" style={{ fontSize: '9px' }}>15s</span>
           </button>
 
-          {/* Play / Pause / Reset */}
           <button
             onClick={finished ? () => reset() : toggle}
             className="w-14 h-14 rounded-2xl flex items-center justify-center active:scale-95 transition-all"
-            style={{
-              background: accentColor,
-              boxShadow: `0 4px 20px ${accentGlow}`,
-            }}
+            style={{ background: accentColor, boxShadow: `0 4px 20px ${accentGlow}` }}
             aria-label={finished ? 'Réinitialiser' : running ? 'Pause' : 'Reprendre'}
           >
             {finished
@@ -128,17 +148,15 @@ export function FloatingTimer() {
             }
           </button>
 
-          {/* +15s */}
           <button
             onClick={() => adjust(15)}
             className="w-11 h-11 rounded-xl bg-slate-700/60 flex flex-col items-center justify-center active:scale-95 transition-transform"
             aria-label="+15s"
           >
             <Plus size={13} className="text-slate-300" />
-            <span className="text-slate-500 text-[9px] leading-none mt-0.5">15s</span>
+            <span className="text-slate-500 leading-none mt-0.5" style={{ fontSize: '9px' }}>15s</span>
           </button>
 
-          {/* Skip */}
           {!finished && (
             <button
               onClick={skip}
@@ -146,11 +164,10 @@ export function FloatingTimer() {
               aria-label="Passer"
             >
               <SkipForward size={14} className="text-slate-400" />
-              <span className="text-slate-600 text-[9px] leading-none mt-0.5">Skip</span>
+              <span className="text-slate-600 leading-none mt-0.5" style={{ fontSize: '9px' }}>Skip</span>
             </button>
           )}
 
-          {/* Reset (when paused) */}
           {!running && !finished && (
             <button
               onClick={() => reset()}
@@ -158,7 +175,7 @@ export function FloatingTimer() {
               aria-label="Réinitialiser"
             >
               <RotateCcw size={14} className="text-slate-400" />
-              <span className="text-slate-600 text-[9px] leading-none mt-0.5">Reset</span>
+              <span className="text-slate-600 leading-none mt-0.5" style={{ fontSize: '9px' }}>Reset</span>
             </button>
           )}
         </div>
