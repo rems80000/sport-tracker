@@ -36,14 +36,14 @@ function ParamStepper({ label, display, onDec, onInc }: { label: string; display
   )
 }
 
-// ─── PostureSection ────────────────────────────────────────────────────────────
+// ─── PostureImg ────────────────────────────────────────────────────────────────
 
 function PostureImg({ src, label }: { src: string; label: string }) {
   const [err, setErr] = useState(false)
   if (err) return (
     <div className="flex flex-col items-center justify-center bg-slate-800/60 rounded-xl h-28 gap-1.5">
       <ImageOff size={18} className="text-slate-600" />
-      <span className="text-slate-600 text-xs text-center px-2">Image posture à ajouter</span>
+      <span className="text-slate-600 text-xs text-center px-2">Image à ajouter</span>
     </div>
   )
   return (
@@ -54,11 +54,32 @@ function PostureImg({ src, label }: { src: string; label: string }) {
   )
 }
 
+// ─── PostureDesktop (colonne droite PC) ────────────────────────────────────────
+
+function PostureDesktop({ exercise }: { exercise: Exercise }) {
+  const [err, setErr] = useState(false)
+  const src = exercise.imageGuide || exercise.imageStart
+  if (!src || err) return (
+    <div className="flex flex-col items-center justify-center w-full h-full min-h-[120px] bg-slate-800/30 rounded-xl gap-2 border border-dashed border-slate-700/40">
+      <ImageOff size={20} className="text-slate-700" />
+      <span className="text-slate-700 text-[10px] text-center px-3 leading-snug">
+        Déposer<br/>/public/exercises/<br/>{exercise.id}.png
+      </span>
+    </div>
+  )
+  return (
+    <img src={src} alt={exercise.name} onError={() => setErr(true)}
+      className="w-full rounded-xl object-contain max-h-48 bg-white/5" />
+  )
+}
+
+// ─── PostureSection (mobile accordion) ────────────────────────────────────────
+
 function PostureSection({ exercise }: { exercise: Pick<Exercise, 'imageStart' | 'imageEnd' | 'imageGuide' | 'name'> }) {
   const [open, setOpen] = useState(false)
   const hasImages = exercise.imageStart || exercise.imageEnd || exercise.imageGuide
   return (
-    <div className="border-t border-slate-700/30">
+    <div className="border-t border-slate-700/30 lg:hidden">
       <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-2.5 active:bg-slate-800/30 transition-colors">
         <span className="text-slate-500 font-medium text-xs">Voir la posture</span>
         {open ? <ChevronUp size={13} className="text-slate-600" /> : <ChevronDown size={13} className="text-slate-600" />}
@@ -83,7 +104,7 @@ function PostureSection({ exercise }: { exercise: Pick<Exercise, 'imageStart' | 
   )
 }
 
-// ─── SetRow (utilisé dans "Modifier série par série") ─────────────────────────
+// ─── SetRow ────────────────────────────────────────────────────────────────────
 
 interface SetRowProps {
   setIndex: number; effectiveSet: ExerciseSet; effectiveWeight: number | undefined
@@ -240,94 +261,105 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
       </div>
 
       {open && (
-        <>
-          {exercise.description && <p className="text-slate-500 text-xs px-4 pb-2 leading-relaxed">{exercise.description}</p>}
+        /* ── 2-col on PC: left=controls, right=posture ── */
+        <div className="lg:flex lg:divide-x lg:divide-slate-700/30">
 
-          {/* Params */}
-          <div className="px-4 pt-2 pb-3 border-t border-slate-700/30 flex flex-wrap justify-around gap-x-3 gap-y-2">
-            <ParamStepper label="Séries" display={String(eff.numSets)}
-              onDec={() => update({ numSets: Math.max(1, eff.numSets! - 1) })}
-              onInc={() => update({ numSets: eff.numSets! + 1 })} />
-            {exercise.type === 'reps' && (
-              <ParamStepper label="Reps" display={eff.targetReps === 0 ? 'Max' : String(eff.targetReps ?? '—')}
-                onDec={() => update({ targetReps: Math.max(0, (eff.targetReps ?? 0) - 1) })}
-                onInc={() => update({ targetReps: (eff.targetReps ?? 0) + 1 })} />
-            )}
-            {(exercise.type === 'duration' || exercise.type === 'cardio') && (
-              <ParamStepper label="Durée" display={`${eff.targetDuration ?? 30}s`}
-                onDec={() => update({ targetDuration: Math.max(5, (eff.targetDuration ?? 30) - 5) })}
-                onInc={() => update({ targetDuration: (eff.targetDuration ?? 30) + 5 })} />
-            )}
-            {showWeight && (
-              <ParamStepper label="Charge" display={effectiveWeight ? `${effectiveWeight}kg` : '—'}
-                onDec={() => update({ weightKg: Math.max(0, Math.round(((effectiveWeight ?? 0) - 2.5) * 10) / 10) })}
-                onInc={() => update({ weightKg: Math.round(((effectiveWeight ?? 0) + 2.5) * 10) / 10 })} />
-            )}
-            <ParamStepper label="Repos" display={`${eff.restSeconds ?? 0}s`}
-              onDec={() => update({ restSeconds: Math.max(0, (eff.restSeconds ?? 0) - 15) })}
-              onInc={() => update({ restSeconds: (eff.restSeconds ?? 0) + 15 })} />
-          </div>
+          {/* Left col: all controls */}
+          <div className="flex-1 min-w-0">
+            {exercise.description && <p className="text-slate-500 text-xs px-4 pb-2 leading-relaxed">{exercise.description}</p>}
 
-          {/* Poids rapides */}
-          {showWeight && (
-            <div className="px-4 pb-3 border-t border-slate-700/20 pt-2">
-              <p className="text-[10px] text-slate-600 uppercase tracking-wide mb-1.5">Charge rapide (kg)</p>
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-                {WEIGHT_PRESETS.map(kg => (
-                  <button key={kg} onClick={() => update({ weightKg: kg })}
-                    className={`flex-shrink-0 w-10 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                      effectiveWeight === kg ? 'bg-indigo-600 text-white'
-                      : !eff.weightKg && lastWeight === kg ? 'bg-indigo-900/60 text-indigo-300 ring-1 ring-indigo-500/40'
-                      : 'bg-slate-700/70 text-slate-300 active:bg-slate-600'}`}>
-                    {kg}
-                  </button>
-                ))}
-              </div>
+            {/* Params */}
+            <div className="px-4 pt-2 pb-3 border-t border-slate-700/30 flex flex-wrap justify-around gap-x-3 gap-y-2">
+              <ParamStepper label="Séries" display={String(eff.numSets)}
+                onDec={() => update({ numSets: Math.max(1, eff.numSets! - 1) })}
+                onInc={() => update({ numSets: eff.numSets! + 1 })} />
+              {exercise.type === 'reps' && (
+                <ParamStepper label="Reps" display={eff.targetReps === 0 ? 'Max' : String(eff.targetReps ?? '—')}
+                  onDec={() => update({ targetReps: Math.max(0, (eff.targetReps ?? 0) - 1) })}
+                  onInc={() => update({ targetReps: (eff.targetReps ?? 0) + 1 })} />
+              )}
+              {(exercise.type === 'duration' || exercise.type === 'cardio') && (
+                <ParamStepper label="Durée" display={`${eff.targetDuration ?? 30}s`}
+                  onDec={() => update({ targetDuration: Math.max(5, (eff.targetDuration ?? 30) - 5) })}
+                  onInc={() => update({ targetDuration: (eff.targetDuration ?? 30) + 5 })} />
+              )}
+              {showWeight && (
+                <ParamStepper label="Charge" display={effectiveWeight ? `${effectiveWeight}kg` : '—'}
+                  onDec={() => update({ weightKg: Math.max(0, Math.round(((effectiveWeight ?? 0) - 2.5) * 10) / 10) })}
+                  onInc={() => update({ weightKg: Math.round(((effectiveWeight ?? 0) + 2.5) * 10) / 10 })} />
+              )}
+              <ParamStepper label="Repos" display={`${eff.restSeconds ?? 0}s`}
+                onDec={() => update({ restSeconds: Math.max(0, (eff.restSeconds ?? 0) - 15) })}
+                onInc={() => update({ restSeconds: (eff.restSeconds ?? 0) + 15 })} />
             </div>
-          )}
 
-          {/* Bouton principal */}
-          <div className="px-4 pb-3 pt-1 border-t border-slate-700/30">
-            {!allDone ? (
-              <button onClick={handleValidateExercise}
-                className="w-full py-3.5 rounded-2xl bg-indigo-600 text-white font-bold text-sm active:scale-95 transition-transform flex items-center justify-center gap-2">
-                <CheckCircle2 size={16} />
-                Valider l'exercice
-                <span className="text-indigo-300 text-xs font-normal">({total - completedCount} série{total - completedCount > 1 ? 's' : ''})</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="flex-1 text-center text-green-400 text-sm font-medium py-1">Exercice terminé ✓</span>
-                <button onClick={handleResetAll} className="w-9 h-9 rounded-xl bg-slate-700/40 flex items-center justify-center text-slate-500 active:scale-95 transition-transform flex-shrink-0">
-                  <RotateCcw size={13} />
+            {/* Poids rapides */}
+            {showWeight && (
+              <div className="px-4 pb-3 border-t border-slate-700/20 pt-2">
+                <p className="text-[10px] text-slate-600 uppercase tracking-wide mb-1.5">Charge rapide (kg)</p>
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                  {WEIGHT_PRESETS.map(kg => (
+                    <button key={kg} onClick={() => update({ weightKg: kg })}
+                      className={`flex-shrink-0 w-10 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                        effectiveWeight === kg ? 'bg-indigo-600 text-white'
+                        : !eff.weightKg && lastWeight === kg ? 'bg-indigo-900/60 text-indigo-300 ring-1 ring-indigo-500/40'
+                        : 'bg-slate-700/70 text-slate-300 active:bg-slate-600'}`}>
+                      {kg}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bouton principal */}
+            <div className="px-4 pb-3 pt-1 border-t border-slate-700/30">
+              {!allDone ? (
+                <button onClick={handleValidateExercise}
+                  className="w-full py-3.5 rounded-2xl bg-indigo-600 text-white font-bold text-sm active:scale-95 transition-transform flex items-center justify-center gap-2">
+                  <CheckCircle2 size={16} />
+                  Valider l'exercice
+                  <span className="text-indigo-300 text-xs font-normal">({total - completedCount} série{total - completedCount > 1 ? 's' : ''})</span>
                 </button>
-              </div>
-            )}
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 text-center text-green-400 text-sm font-medium py-1">Exercice terminé ✓</span>
+                  <button onClick={handleResetAll} className="w-9 h-9 rounded-xl bg-slate-700/40 flex items-center justify-center text-slate-500 active:scale-95 transition-transform flex-shrink-0">
+                    <RotateCcw size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Détails série par série */}
+            <div className="border-t border-slate-700/20">
+              <button onClick={() => setShowDetails(d => !d)}
+                className="w-full flex items-center justify-between px-4 py-2 active:bg-slate-800/20 transition-colors">
+                <span className="text-slate-600 text-xs">Modifier série par série</span>
+                {showDetails ? <ChevronUp size={12} className="text-slate-700" /> : <ChevronDown size={12} className="text-slate-700" />}
+              </button>
+              {showDetails && (
+                <div className="px-4 pb-3 flex flex-col border-t border-slate-700/20 pt-1 animate-slide-up">
+                  {effectiveSets.map((effSet, i) => {
+                    const logged = logs.find(l => l.exerciseId === exercise.id && l.setIndex === i)
+                    return (
+                      <SetRow key={i} setIndex={i} effectiveSet={effSet} effectiveWeight={effectiveWeight}
+                        exercise={exercise} logged={logged}
+                        onLog={data => onLog(exercise.id, i, data)} onStartTimer={onStartTimer} />
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Posture accordion mobile only */}
+            <PostureSection exercise={exercise} />
           </div>
 
-          {/* Détails série par série (masqués par défaut) */}
-          <div className="border-t border-slate-700/20">
-            <button onClick={() => setShowDetails(d => !d)}
-              className="w-full flex items-center justify-between px-4 py-2 active:bg-slate-800/20 transition-colors">
-              <span className="text-slate-600 text-xs">Modifier série par série</span>
-              {showDetails ? <ChevronUp size={12} className="text-slate-700" /> : <ChevronDown size={12} className="text-slate-700" />}
-            </button>
-            {showDetails && (
-              <div className="px-4 pb-3 flex flex-col border-t border-slate-700/20 pt-1 animate-slide-up">
-                {effectiveSets.map((effSet, i) => {
-                  const logged = logs.find(l => l.exerciseId === exercise.id && l.setIndex === i)
-                  return (
-                    <SetRow key={i} setIndex={i} effectiveSet={effSet} effectiveWeight={effectiveWeight}
-                      exercise={exercise} logged={logged}
-                      onLog={data => onLog(exercise.id, i, data)} onStartTimer={onStartTimer} />
-                  )
-                })}
-              </div>
-            )}
+          {/* Right col: posture image (PC only) */}
+          <div className="hidden lg:flex flex-col justify-center p-4 w-52 xl:w-64 flex-shrink-0">
+            <PostureDesktop exercise={exercise} />
           </div>
-
-          <PostureSection exercise={exercise} />
-        </>
+        </div>
       )}
     </div>
   )
@@ -356,9 +388,8 @@ export function ActiveSession() {
   const [sessionComment, setSessionComment] = useState('')
   const startTimeRef = useRef(new Date().toISOString())
 
-  // Position du bouton "Terminer" au-dessus du timer
   const timerIsActive = timerState.running || timerState.finished || timerState.remaining !== timerState.total
-  const finishBarBottom = timerIsActive ? 260 : 112  // nav(60) + timer(idle≈52 | active≈200)
+  const finishBarBottom = timerIsActive ? 260 : 112
 
   const lastWeightByExercise = useMemo(() => {
     const result: Record<string, number> = {}
@@ -409,7 +440,7 @@ export function ActiveSession() {
   const handleCancel = () => { dispatch({ type: 'CANCEL_SESSION' }); navigate('/') }
 
   return (
-    <div className="flex flex-col pb-[340px] max-w-2xl mx-auto w-full">
+    <div className="flex flex-col pb-[440px] max-w-2xl lg:max-w-4xl mx-auto w-full">
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-slate-700/50 px-4 pt-4 pb-3">
         <div className="flex items-center gap-3 mb-2.5">
@@ -437,7 +468,7 @@ export function ActiveSession() {
             lastWeight={lastWeightByExercise[ex.id]}
             onLog={handleLog} onStartTimer={startTimer} onOverride={handleOverride} />
         ))}
-        {/* Abandonner (toujours scrollable en bas) */}
+        {/* Actions secondaires */}
         <div className="flex flex-col gap-2 mt-2">
           {session.hasShortVersion && (
             <button onClick={() => handleFinish(true)}
@@ -452,17 +483,17 @@ export function ActiveSession() {
         </div>
       </div>
 
-      {/* Bouton "Terminer" fixe au-dessus du timer ─────────────────────────── */}
+      {/* Bouton "Terminer" fixe au-dessus du timer */}
       <div className="fixed left-0 right-0 z-[45] px-4 pb-2 pt-3"
         style={{ bottom: `${finishBarBottom}px`, background: 'linear-gradient(to top, rgba(4,8,15,0.98) 60%, transparent)' }}>
         <button onClick={() => setShowFinish(true)}
-          className="w-full max-w-2xl mx-auto block py-3.5 rounded-2xl bg-green-600 text-white font-bold text-base active:scale-95 transition-transform flex items-center justify-center gap-2">
+          className="w-full max-w-4xl mx-auto block py-3.5 rounded-2xl bg-green-600 text-white font-bold text-base active:scale-95 transition-transform flex items-center justify-center gap-2">
           <Flag size={18} />
           Terminer la séance
         </button>
       </div>
 
-      {/* Modale fin de séance ────────────────────────────────────────────── */}
+      {/* Modale fin de séance */}
       {showFinish && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
           onClick={e => { if (e.target === e.currentTarget) setShowFinish(false) }}>

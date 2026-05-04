@@ -18,6 +18,7 @@ export const PROGRAM: WorkoutSession[] = [
         hasWeight: false,
         sets: [{ targetDuration: 300, restSeconds: 0 }],
         notes: 'Échauffement progressif',
+        imageGuide: '/exercises/rameur.png',
       },
       {
         id: 's1_squat',
@@ -34,6 +35,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 8, restSeconds: 90 },
         ],
         notes: 'Augmenter la charge progressivement si technique propre',
+        imageGuide: '/exercises/squat-goblet.png',
       },
       {
         id: 's1_pompes',
@@ -50,6 +52,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 0, restSeconds: 90 },
         ],
         notes: 'Maximum propre · Objectif : 20 propres',
+        imageGuide: '/exercises/pompes.png',
       },
       {
         id: 's1_rowing',
@@ -66,6 +69,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 10, restSeconds: 90 },
         ],
         notes: '10 reps par bras',
+        imageGuide: '/exercises/rowing-haltere.png',
       },
       {
         id: 's1_gainage',
@@ -81,6 +85,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetDuration: 40, restSeconds: 60 },
         ],
         notes: 'Objectif : progresser vers 60 sec',
+        imageGuide: '/exercises/abdos-gainage.png',
       },
     ],
   },
@@ -112,6 +117,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetDuration: 30, restSeconds: 30 },
         ],
         notes: '30 sec rapide / 30 sec lent × 8',
+        imageGuide: '/exercises/rameur.png',
       },
       {
         id: 's2_squats',
@@ -128,6 +134,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 12, restSeconds: 45 },
         ],
         notes: 'Circuit tour 1–4 · repos 30-45 sec',
+        imageGuide: '/exercises/squat-goblet.png',
       },
       {
         id: 's2_pompes',
@@ -144,6 +151,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 12, restSeconds: 45 },
         ],
         notes: 'Circuit · repos 30-45 sec',
+        imageGuide: '/exercises/pompes.png',
       },
       {
         id: 's2_iyt',
@@ -160,6 +168,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 8, restSeconds: 45 },
         ],
         notes: 'Circuit · repos 30-45 sec',
+        imageGuide: '/exercises/iy-t-postural.png',
       },
       {
         id: 's2_gainage',
@@ -176,6 +185,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetDuration: 30, restSeconds: 60 },
         ],
         notes: '20-40 sec · repos 60 sec entre les tours',
+        imageGuide: '/exercises/abdos-gainage.png',
       },
     ],
   },
@@ -196,6 +206,7 @@ export const PROGRAM: WorkoutSession[] = [
         hasWeight: false,
         sets: [{ targetDuration: 300, restSeconds: 0 }],
         notes: 'Échauffement à allure douce',
+        imageGuide: '/exercises/rameur.png',
       },
       {
         id: 's3_fentes',
@@ -211,6 +222,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 10, restSeconds: 90 },
         ],
         notes: '10 reps par jambe',
+        imageGuide: '/exercises/fentes.png',
       },
       {
         id: 's3_epaules',
@@ -226,6 +238,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 10, restSeconds: 90 },
         ],
         notes: '',
+        imageGuide: '/exercises/developpe-epaules.png',
       },
       {
         id: 's3_rowing',
@@ -241,6 +254,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 10, restSeconds: 90 },
         ],
         notes: 'Maintien 2 sec en haut de chaque rep',
+        imageGuide: '/exercises/rowing-haltere.png',
       },
       {
         id: 's3_planche',
@@ -256,6 +270,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetDuration: 45, restSeconds: 60 },
         ],
         notes: '',
+        imageGuide: '/exercises/planche.png',
       },
       {
         id: 's3_gainage_lat',
@@ -271,6 +286,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetDuration: 30, restSeconds: 60 },
         ],
         notes: '30 sec par côté',
+        imageGuide: '/exercises/gainage-lateral.png',
       },
     ],
   },
@@ -293,6 +309,7 @@ export const PROGRAM: WorkoutSession[] = [
         hasWeight: false,
         sets: [{ targetDuration: 900, restSeconds: 0 }],
         notes: '10-20 min à allure légère',
+        imageGuide: '/exercises/rameur.png',
       },
       {
         id: 's4_mobilite',
@@ -318,6 +335,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 10, restSeconds: 30 },
         ],
         notes: 'Version express',
+        imageGuide: '/exercises/pompes.png',
       },
       {
         id: 's4_squats',
@@ -332,6 +350,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetReps: 15, restSeconds: 30 },
         ],
         notes: 'Version express',
+        imageGuide: '/exercises/squat-goblet.png',
       },
       {
         id: 's4_gainage',
@@ -346,6 +365,7 @@ export const PROGRAM: WorkoutSession[] = [
           { targetDuration: 30, restSeconds: 30 },
         ],
         notes: 'Version express',
+        imageGuide: '/exercises/abdos-gainage.png',
       },
     ],
   },
