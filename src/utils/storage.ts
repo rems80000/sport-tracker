@@ -1,6 +1,7 @@
-import type { AppState, SessionLog } from '../types'
+import type { AppState, AppTheme, SessionLog } from '../types'
 
 const STORAGE_KEY = 'sport_tracker_v1'
+const VALID_THEMES: AppTheme[] = ['dark', 'tech', 'minimal']
 
 const DEFAULT_STATE: AppState = {
   sessions: [],
@@ -13,7 +14,8 @@ export function loadState(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULT_STATE
     const parsed = JSON.parse(raw)
-    return { ...DEFAULT_STATE, ...parsed }
+    const theme: AppTheme = VALID_THEMES.includes(parsed.theme) ? parsed.theme : 'dark'
+    return { ...DEFAULT_STATE, ...parsed, theme }
   } catch {
     return DEFAULT_STATE
   }

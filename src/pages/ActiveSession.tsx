@@ -8,11 +8,107 @@ import type { Exercise, ExerciseSet, LoggedSet, Feeling, ExerciseSessionOverride
 import { formatDuration } from '../utils/storage'
 import {
   CheckCircle2, Circle, ChevronDown, ChevronUp,
-  ArrowLeft, X, Flag, Settings2, Plus, Minus,
+  ArrowLeft, X, Flag, Plus, Minus, Pencil, ImageOff,
 } from 'lucide-react'
 
 function generateId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
+
+// ─── ParamStepper ──────────────────────────────────────────────────────────────
+
+interface ParamStepperProps {
+  label: string
+  display: string
+  onDec: () => void
+  onInc: () => void
+}
+
+function ParamStepper({ label, display, onDec, onInc }: ParamStepperProps) {
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <span className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</span>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onDec}
+          className="w-7 h-7 rounded-lg bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform"
+        >
+          <Minus size={10} className="text-slate-300" />
+        </button>
+        <span className="text-white text-sm font-bold min-w-[34px] text-center tabular-nums">{display}</span>
+        <button
+          onClick={onInc}
+          className="w-7 h-7 rounded-lg bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform"
+        >
+          <Plus size={10} className="text-slate-300" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── PostureSection ────────────────────────────────────────────────────────────
+
+function PostureImg({ src, label }: { src: string; label: string }) {
+  const [err, setErr] = useState(false)
+  if (err) {
+    return (
+      <div className="flex flex-col items-center justify-center bg-slate-800/60 rounded-xl h-28 gap-1.5">
+        <ImageOff size={18} className="text-slate-600" />
+        <span className="text-slate-600 text-xs text-center px-2">Image posture à ajouter</span>
+      </div>
+    )
+  }
+  return (
+    <div className="relative">
+      <img
+        src={src}
+        alt={label}
+        onError={() => setErr(true)}
+        className="w-full rounded-xl object-cover max-h-44"
+      />
+      <span className="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-md font-medium">
+        {label}
+      </span>
+    </div>
+  )
+}
+
+function PostureSection({ exercise }: { exercise: Pick<Exercise, 'imageStart' | 'imageEnd' | 'imageGuide' | 'name'> }) {
+  const [open, setOpen] = useState(false)
+  const hasImages = exercise.imageStart || exercise.imageEnd || exercise.imageGuide
+
+  return (
+    <div className="border-t border-slate-700/30">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-sm active:bg-slate-800/30 transition-colors"
+      >
+        <span className="text-slate-500 font-medium text-xs">Voir la posture</span>
+        {open ? <ChevronUp size={13} className="text-slate-600" /> : <ChevronDown size={13} className="text-slate-600" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-3 animate-slide-up">
+          {hasImages ? (
+            <div className="grid grid-cols-2 gap-2">
+              {exercise.imageStart && <PostureImg src={exercise.imageStart} label="Départ" />}
+              {exercise.imageEnd && <PostureImg src={exercise.imageEnd} label="Arrivée" />}
+              {exercise.imageGuide && (
+                <div className="col-span-2">
+                  <PostureImg src={exercise.imageGuide} label="Guide technique" />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center bg-slate-800/40 rounded-xl h-24 gap-2">
+              <ImageOff size={20} className="text-slate-700" />
+              <span className="text-slate-600 text-xs">Image posture à ajouter</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── SetRow ────────────────────────────────────────────────────────────────────
@@ -20,145 +116,152 @@ function generateId(): string {
 interface SetRowProps {
   setIndex: number
   effectiveSet: ExerciseSet
+  effectiveWeight: number | undefined
   exercise: Exercise
   logged?: LoggedSet
   onLog: (data: Omit<LoggedSet, 'exerciseId' | 'setIndex' | 'timestamp'>) => void
   onStartTimer: (seconds: number) => void
 }
 
-function SetRow({ setIndex, effectiveSet, exercise, logged, onLog, onStartTimer }: SetRowProps) {
+function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onLog, onStartTimer }: SetRowProps) {
   const isCompleted = logged?.completed ?? false
-  const [expanded, setExpanded] = useState(false)
+  const [editing, setEditing] = useState(false)
 
-  // Pre-fill with logged values, fallback to targets
   const [reps, setReps] = useState(
     logged?.reps?.toString() ?? (effectiveSet.targetReps ? String(effectiveSet.targetReps) : '')
   )
-  const [weight, setWeight] = useState(logged?.weightKg?.toString() ?? '')
+  const [weight, setWeight] = useState(
+    logged?.weightKg?.toString() ?? effectiveWeight?.toString() ?? ''
+  )
   const [duration, setDuration] = useState(
     logged?.durationSeconds?.toString() ?? (effectiveSet.targetDuration ? String(effectiveSet.targetDuration) : '')
   )
-  const [comment, setComment] = useState(logged?.comment ?? '')
 
-  const handleComplete = () => {
+  const showWeight = exercise.hasWeight || exercise.category === 'weight'
+
+  const handleQuickValidate = () => {
+    onLog({
+      completed: true,
+      reps: effectiveSet.targetReps || undefined,
+      weightKg: effectiveWeight || undefined,
+      durationSeconds: effectiveSet.targetDuration || undefined,
+    })
+    if (effectiveSet.restSeconds > 0) onStartTimer(effectiveSet.restSeconds)
+  }
+
+  const handleSaveEdit = () => {
     onLog({
       completed: true,
       reps: reps ? parseInt(reps) : undefined,
       weightKg: weight ? parseFloat(weight) : undefined,
       durationSeconds: duration ? parseInt(duration) : undefined,
-      comment: comment || undefined,
     })
-    if (effectiveSet.restSeconds > 0) onStartTimer(effectiveSet.restSeconds)
+    setEditing(false)
+    if (!isCompleted && effectiveSet.restSeconds > 0) onStartTimer(effectiveSet.restSeconds)
   }
 
-  const restLabel = effectiveSet.restSeconds > 0 ? ` → ${effectiveSet.restSeconds}s repos` : ''
+  const restNote = effectiveSet.restSeconds > 0 ? ` +${effectiveSet.restSeconds}s` : ''
 
-  return (
-    <div className={`rounded-xl border transition-colors ${isCompleted ? 'border-green-500/30 bg-green-500/5' : 'border-slate-700/50 bg-slate-800/40'}`}>
-      {/* Row header */}
-      <div className="flex items-center gap-3 p-3">
-        <button onClick={isCompleted ? () => onLog({ completed: false }) : undefined} className="flex-shrink-0">
-          {isCompleted
-            ? <CheckCircle2 size={24} className="text-green-400" />
-            : <Circle size={24} className="text-slate-600" />
-          }
-        </button>
-
-        <div className="flex-1 min-w-0">
-          <span className="text-slate-200 text-sm font-semibold">Série {setIndex + 1}</span>
-          <span className="text-slate-500 text-xs ml-2">
-            {exercise.type === 'reps'
-              ? (effectiveSet.targetReps === 0 ? 'Max propre' : `${effectiveSet.targetReps} reps`)
-              : effectiveSet.targetDuration ? formatDuration(effectiveSet.targetDuration) : '—'
-            }
-            {effectiveSet.restSeconds > 0 && ` · ${effectiveSet.restSeconds}s`}
-          </span>
-          {/* Logged summary */}
-          {isCompleted && (
-            <span className="text-green-400 text-xs ml-2">
-              {logged?.reps && `${logged.reps} reps`}
-              {logged?.weightKg && ` · ${logged.weightKg}kg`}
-              {logged?.durationSeconds && ` · ${logged.durationSeconds}s`}
-            </span>
-          )}
-        </div>
-
-        <button onClick={() => setExpanded(e => !e)} className="p-1.5 text-slate-500 active:text-slate-300">
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </button>
-      </div>
-
-      {/* Expanded detail form */}
-      {expanded && (
-        <div className="px-3 pb-3 flex flex-col gap-2.5 animate-slide-up">
-          <div className="grid grid-cols-2 gap-2">
-            {exercise.type === 'reps' && (
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-slate-400 font-medium">Reps réalisées</span>
-                <input
-                  type="number" inputMode="numeric"
-                  value={reps} onChange={e => setReps(e.target.value)}
-                  className="bg-slate-700 rounded-xl px-3 py-3 text-white text-base font-semibold w-full text-center"
-                  placeholder="0"
-                />
-              </label>
-            )}
-            {(exercise.type === 'duration' || exercise.type === 'cardio') && (
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-slate-400 font-medium">Durée réelle (sec)</span>
-                <input
-                  type="number" inputMode="numeric"
-                  value={duration} onChange={e => setDuration(e.target.value)}
-                  className="bg-slate-700 rounded-xl px-3 py-3 text-white text-base font-semibold w-full text-center"
-                  placeholder="0"
-                />
-              </label>
-            )}
-            {(exercise.hasWeight || exercise.category === 'weight') && (
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-slate-400 font-medium">Charge (kg)</span>
-                <input
-                  type="number" inputMode="decimal"
-                  value={weight} onChange={e => setWeight(e.target.value)}
-                  className="bg-slate-700 rounded-xl px-3 py-3 text-white text-base font-semibold w-full text-center"
-                  placeholder="0"
-                />
-              </label>
-            )}
-          </div>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400 font-medium">Note (optionnel)</span>
-            <input
-              type="text" value={comment} onChange={e => setComment(e.target.value)}
-              className="bg-slate-700 rounded-xl px-3 py-2.5 text-white text-sm w-full"
-              placeholder="Ressenti, technique..."
-            />
-          </label>
-
-          {!isCompleted && (
-            <button
-              onClick={handleComplete}
-              className="w-full py-3.5 rounded-xl bg-indigo-600 text-white font-bold text-sm active:scale-95 transition-transform flex items-center justify-center gap-2"
-            >
-              <CheckCircle2 size={16} />
-              Valider{restLabel}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Quick validate button when collapsed and not done */}
-      {!isCompleted && !expanded && (
-        <div className="px-3 pb-3">
-          <button
-            onClick={handleComplete}
-            className="w-full py-3 rounded-xl bg-indigo-600/80 text-white font-semibold text-sm active:scale-95 transition-transform"
-          >
-            ✓ Série {setIndex + 1} réalisée{restLabel}
+  // Editing form
+  if (editing) {
+    return (
+      <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3 animate-slide-up">
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className="text-sm font-bold text-indigo-400">Série {setIndex + 1}</span>
+          <button onClick={() => setEditing(false)} className="ml-auto text-slate-500 p-1">
+            <X size={13} />
           </button>
         </div>
+        <div className="grid grid-cols-2 gap-2 mb-2.5">
+          {exercise.type === 'reps' && (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400">Reps réelles</span>
+              <input
+                type="number" inputMode="numeric"
+                value={reps} onChange={e => setReps(e.target.value)}
+                className="bg-slate-700 rounded-xl px-3 py-2.5 text-white text-base font-semibold text-center"
+                placeholder="0"
+              />
+            </label>
+          )}
+          {showWeight && (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400">Charge (kg)</span>
+              <input
+                type="number" inputMode="decimal"
+                value={weight} onChange={e => setWeight(e.target.value)}
+                className="bg-slate-700 rounded-xl px-3 py-2.5 text-white text-base font-semibold text-center"
+                placeholder="0"
+              />
+            </label>
+          )}
+          {(exercise.type === 'duration' || exercise.type === 'cardio') && (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400">Durée (sec)</span>
+              <input
+                type="number" inputMode="numeric"
+                value={duration} onChange={e => setDuration(e.target.value)}
+                className="bg-slate-700 rounded-xl px-3 py-2.5 text-white text-base font-semibold text-center"
+                placeholder="0"
+              />
+            </label>
+          )}
+        </div>
+        <button
+          onClick={handleSaveEdit}
+          className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold active:scale-95 transition-transform"
+        >
+          Enregistrer
+        </button>
+      </div>
+    )
+  }
+
+  // Completed row
+  if (isCompleted) {
+    return (
+      <div className="flex items-center gap-3 py-1.5 px-1">
+        <button onClick={() => onLog({ completed: false })} className="flex-shrink-0">
+          <CheckCircle2 size={20} className="text-green-400" />
+        </button>
+        <span className="text-green-400 text-sm font-semibold">Série {setIndex + 1}</span>
+        <span className="text-green-600 text-xs">
+          {logged?.reps != null && `${logged.reps} reps`}
+          {logged?.weightKg != null && ` · ${logged.weightKg}kg`}
+          {logged?.durationSeconds != null && ` · ${logged.durationSeconds}s`}
+        </span>
+        <button
+          onClick={() => {
+            setReps(logged?.reps?.toString() ?? '')
+            setWeight(logged?.weightKg?.toString() ?? effectiveWeight?.toString() ?? '')
+            setDuration(logged?.durationSeconds?.toString() ?? '')
+            setEditing(true)
+          }}
+          className="ml-auto p-1.5 text-slate-600 active:text-slate-400 transition-colors"
+        >
+          <Pencil size={12} />
+        </button>
+      </div>
+    )
+  }
+
+  // Not completed — quick validate
+  return (
+    <div className="flex items-center gap-3 py-1.5 px-1">
+      <Circle size={20} className="text-slate-700 flex-shrink-0" />
+      <span className="text-slate-500 text-sm">Série {setIndex + 1}</span>
+      {effectiveSet.targetReps != null && effectiveSet.targetReps > 0 && (
+        <span className="text-slate-700 text-xs">{effectiveSet.targetReps}r</span>
       )}
+      {effectiveSet.targetDuration != null && (
+        <span className="text-slate-700 text-xs">{formatDuration(effectiveSet.targetDuration)}</span>
+      )}
+      <button
+        onClick={handleQuickValidate}
+        className="ml-auto px-3 py-2 rounded-xl bg-indigo-600/80 text-white text-sm font-semibold active:scale-95 transition-transform"
+      >
+        ✓{restNote}
+      </button>
     </div>
   )
 }
@@ -176,18 +279,16 @@ interface ExerciseBlockProps {
 
 function ExerciseBlock({ exercise, logs, override, onLog, onStartTimer, onOverride }: ExerciseBlockProps) {
   const [open, setOpen] = useState(true)
-  const [editMode, setEditMode] = useState(false)
 
-  // Effective values = program defaults merged with session overrides
   const baseSet = exercise.sets[0]
   const eff: ExerciseSessionOverride = {
     numSets: override?.numSets ?? exercise.sets.length,
     targetReps: override?.targetReps ?? baseSet?.targetReps,
     targetDuration: override?.targetDuration ?? baseSet?.targetDuration,
     restSeconds: override?.restSeconds ?? baseSet?.restSeconds ?? 0,
+    weightKg: override?.weightKg,
   }
 
-  // Build effective set list
   const effectiveSets: ExerciseSet[] = Array.from({ length: eff.numSets! }, () => ({
     targetReps: eff.targetReps,
     targetDuration: eff.targetDuration,
@@ -197,6 +298,7 @@ function ExerciseBlock({ exercise, logs, override, onLog, onStartTimer, onOverri
   const completedCount = logs.filter(l => l.exerciseId === exercise.id && l.completed).length
   const total = effectiveSets.length
   const allDone = completedCount >= total
+  const showWeight = exercise.hasWeight || exercise.category === 'weight'
 
   const update = (patch: Partial<ExerciseSessionOverride>) =>
     onOverride(exercise.id, { ...eff, ...patch })
@@ -206,127 +308,94 @@ function ExerciseBlock({ exercise, logs, override, onLog, onStartTimer, onOverri
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3">
         <ExerciseImage exercise={exercise} size="sm" />
-
         <button onClick={() => setOpen(o => !o)} className="flex-1 min-w-0 text-left">
           <p className="text-white font-bold leading-tight">{exercise.name}</p>
           {exercise.notes && <p className="text-slate-500 text-xs mt-0.5 leading-tight">{exercise.notes}</p>}
         </button>
-
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className={`text-sm font-bold tabular-nums ${allDone ? 'text-green-400' : 'text-slate-400'}`}>
             {completedCount}/{total}
           </span>
           {allDone && <CheckCircle2 size={15} className="text-green-400" />}
-          <button
-            onClick={() => { setEditMode(e => !e); setOpen(true) }}
-            className={`p-1.5 rounded-lg transition-colors ${editMode ? 'bg-indigo-600/30 text-indigo-400' : 'text-slate-500 active:bg-slate-700'}`}
-          >
-            <Settings2 size={14} />
-          </button>
           <button onClick={() => setOpen(o => !o)} className="p-1 text-slate-500">
             {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
         </div>
       </div>
 
-      {/* Description */}
-      {open && exercise.description && !editMode && (
-        <p className="text-slate-500 text-xs px-4 pb-2 leading-relaxed">{exercise.description}</p>
-      )}
+      {open && (
+        <>
+          {/* Description */}
+          {exercise.description && (
+            <p className="text-slate-500 text-xs px-4 pb-2 leading-relaxed">{exercise.description}</p>
+          )}
 
-      {/* Edit mode: override parameters */}
-      {open && editMode && (
-        <div className="px-4 pb-3 pt-1 border-t border-slate-700/40 animate-slide-up">
-          <p className="text-xs font-semibold text-indigo-400 mb-2">Ajuster pour cette séance</p>
-          <div className="grid grid-cols-2 gap-2">
-            {/* Num sets */}
-            <div className="bg-slate-800 rounded-xl p-2">
-              <p className="text-xs text-slate-400 mb-1.5">Séries</p>
-              <div className="flex items-center gap-2">
-                <button onClick={() => update({ numSets: Math.max(1, (eff.numSets ?? 1) - 1) })}
-                  className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center active:scale-95">
-                  <Minus size={13} className="text-slate-300" />
-                </button>
-                <span className="flex-1 text-center text-white font-bold text-lg">{eff.numSets}</span>
-                <button onClick={() => update({ numSets: (eff.numSets ?? 1) + 1 })}
-                  className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center active:scale-95">
-                  <Plus size={13} className="text-slate-300" />
-                </button>
-              </div>
-            </div>
+          {/* Params — always editable inline */}
+          <div className="px-4 pt-2 pb-3 border-t border-slate-700/30 flex flex-wrap justify-around gap-x-3 gap-y-2">
+            <ParamStepper
+              label="Séries"
+              display={String(eff.numSets)}
+              onDec={() => update({ numSets: Math.max(1, eff.numSets! - 1) })}
+              onInc={() => update({ numSets: eff.numSets! + 1 })}
+            />
 
-            {/* Reps or Duration */}
-            {exercise.type === 'reps' ? (
-              <div className="bg-slate-800 rounded-xl p-2">
-                <p className="text-xs text-slate-400 mb-1.5">Reps cibles</p>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => update({ targetReps: Math.max(0, (eff.targetReps ?? 0) - 1) })}
-                    className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center active:scale-95">
-                    <Minus size={13} className="text-slate-300" />
-                  </button>
-                  <span className="flex-1 text-center text-white font-bold text-lg">
-                    {eff.targetReps === 0 ? 'Max' : eff.targetReps}
-                  </span>
-                  <button onClick={() => update({ targetReps: (eff.targetReps ?? 0) + 1 })}
-                    className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center active:scale-95">
-                    <Plus size={13} className="text-slate-300" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-slate-800 rounded-xl p-2">
-                <p className="text-xs text-slate-400 mb-1.5">Durée (sec)</p>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => update({ targetDuration: Math.max(5, (eff.targetDuration ?? 30) - 5) })}
-                    className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center active:scale-95">
-                    <Minus size={13} className="text-slate-300" />
-                  </button>
-                  <span className="flex-1 text-center text-white font-bold text-base">{eff.targetDuration}s</span>
-                  <button onClick={() => update({ targetDuration: (eff.targetDuration ?? 30) + 5 })}
-                    className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center active:scale-95">
-                    <Plus size={13} className="text-slate-300" />
-                  </button>
-                </div>
-              </div>
+            {exercise.type === 'reps' && (
+              <ParamStepper
+                label="Reps"
+                display={eff.targetReps === 0 ? 'Max' : String(eff.targetReps ?? '—')}
+                onDec={() => update({ targetReps: Math.max(0, (eff.targetReps ?? 0) - 1) })}
+                onInc={() => update({ targetReps: (eff.targetReps ?? 0) + 1 })}
+              />
             )}
 
-            {/* Rest */}
-            <div className="bg-slate-800 rounded-xl p-2 col-span-2">
-              <p className="text-xs text-slate-400 mb-1.5">Temps de repos (sec)</p>
-              <div className="flex items-center gap-2">
-                <button onClick={() => update({ restSeconds: Math.max(0, (eff.restSeconds ?? 0) - 15) })}
-                  className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center active:scale-95">
-                  <Minus size={13} className="text-slate-300" />
-                </button>
-                <span className="flex-1 text-center text-white font-bold text-lg">{eff.restSeconds}s</span>
-                <button onClick={() => update({ restSeconds: (eff.restSeconds ?? 0) + 15 })}
-                  className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center active:scale-95">
-                  <Plus size={13} className="text-slate-300" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sets list */}
-      {open && (
-        <div className="px-4 pb-4 flex flex-col gap-2">
-          {effectiveSets.map((effSet, i) => {
-            const logged = logs.find(l => l.exerciseId === exercise.id && l.setIndex === i)
-            return (
-              <SetRow
-                key={i}
-                setIndex={i}
-                effectiveSet={effSet}
-                exercise={exercise}
-                logged={logged}
-                onLog={data => onLog(exercise.id, i, data)}
-                onStartTimer={onStartTimer}
+            {(exercise.type === 'duration' || exercise.type === 'cardio') && (
+              <ParamStepper
+                label="Durée"
+                display={`${eff.targetDuration ?? 30}s`}
+                onDec={() => update({ targetDuration: Math.max(5, (eff.targetDuration ?? 30) - 5) })}
+                onInc={() => update({ targetDuration: (eff.targetDuration ?? 30) + 5 })}
               />
-            )
-          })}
-        </div>
+            )}
+
+            {showWeight && (
+              <ParamStepper
+                label="Charge"
+                display={eff.weightKg ? `${eff.weightKg}kg` : '—'}
+                onDec={() => update({ weightKg: Math.max(0, Math.round(((eff.weightKg ?? 0) - 2.5) * 10) / 10) })}
+                onInc={() => update({ weightKg: Math.round(((eff.weightKg ?? 0) + 2.5) * 10) / 10 })}
+              />
+            )}
+
+            <ParamStepper
+              label="Repos"
+              display={`${eff.restSeconds ?? 0}s`}
+              onDec={() => update({ restSeconds: Math.max(0, (eff.restSeconds ?? 0) - 15) })}
+              onInc={() => update({ restSeconds: (eff.restSeconds ?? 0) + 15 })}
+            />
+          </div>
+
+          {/* Compact set rows */}
+          <div className="px-4 pb-3 flex flex-col border-t border-slate-700/30 pt-1">
+            {effectiveSets.map((effSet, i) => {
+              const logged = logs.find(l => l.exerciseId === exercise.id && l.setIndex === i)
+              return (
+                <SetRow
+                  key={i}
+                  setIndex={i}
+                  effectiveSet={effSet}
+                  effectiveWeight={eff.weightKg}
+                  exercise={exercise}
+                  logged={logged}
+                  onLog={data => onLog(exercise.id, i, data)}
+                  onStartTimer={onStartTimer}
+                />
+              )
+            })}
+          </div>
+
+          {/* Posture accordion */}
+          <PostureSection exercise={exercise} />
+        </>
       )}
     </div>
   )
@@ -384,7 +453,6 @@ export function ActiveSession() {
   const logs = state.activeSessionLog?.sets ?? []
   const overrides = state.activeSessionLog?.exerciseOverrides ?? {}
 
-  // Compute total sets accounting for overrides
   const totalSets = session.exercises.reduce((acc, ex) => {
     const numSets = overrides[ex.id]?.numSets ?? ex.sets.length
     return acc + numSets
@@ -398,10 +466,6 @@ export function ActiveSession() {
 
   const handleOverride = (exerciseId: string, override: ExerciseSessionOverride) => {
     dispatch({ type: 'SET_EXERCISE_OVERRIDE', payload: { exerciseId, override } })
-  }
-
-  const handleTimerStart = (seconds: number) => {
-    startTimer(seconds)
   }
 
   const handleFinish = (isShort = false) => {
@@ -419,7 +483,7 @@ export function ActiveSession() {
   }
 
   return (
-    <div className="flex flex-col pb-36 max-w-2xl mx-auto w-full">
+    <div className="flex flex-col pb-56 max-w-2xl mx-auto w-full">
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-slate-700/50 px-4 pt-4 pb-3">
         <div className="flex items-center gap-3 mb-2.5">
@@ -454,7 +518,7 @@ export function ActiveSession() {
             logs={logs}
             override={overrides[ex.id]}
             onLog={handleLog}
-            onStartTimer={handleTimerStart}
+            onStartTimer={startTimer}
             onOverride={handleOverride}
           />
         ))}

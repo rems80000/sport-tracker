@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { StoreContext, useStoreReducer } from './store/useStore'
+import { StoreContext, useStore, useStoreReducer } from './store/useStore'
 import { TimerProvider } from './store/timerContext'
 import { Navigation } from './components/Navigation'
 import { FloatingTimer } from './components/FloatingTimer'
@@ -12,8 +12,9 @@ import { Progress } from './pages/Progress'
 import { Settings } from './pages/Settings'
 
 function AppInner() {
+  const { state } = useStore()
   return (
-    <div className="app-root flex flex-col min-h-dvh">
+    <div className={`app-root flex flex-col min-h-dvh theme-${state.theme}`}>
       <main className="flex-1 overflow-y-auto">
         <Routes>
           <Route path="/" element={<Dashboard />} />

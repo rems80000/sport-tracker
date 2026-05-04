@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect } from 'react'
 import type { Dispatch } from 'react'
-import type { AppState, SessionLog, LoggedSet, ExerciseSessionOverride } from '../types'
+import type { AppState, AppTheme, SessionLog, LoggedSet, ExerciseSessionOverride } from '../types'
 import { loadState, saveState } from '../utils/storage'
 
 type Action =
@@ -12,7 +12,7 @@ type Action =
   | { type: 'CANCEL_SESSION' }
   | { type: 'DELETE_SESSION'; payload: string }
   | { type: 'IMPORT_STATE'; payload: AppState }
-  | { type: 'SET_THEME'; payload: 'dark' | 'light' }
+  | { type: 'SET_THEME'; payload: AppTheme }
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {

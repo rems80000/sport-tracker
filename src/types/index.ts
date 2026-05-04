@@ -26,6 +26,10 @@ export interface Exercise {
   // visual
   thumbnail?: string   // emoji fallback
   imageUrl?: string    // real image URL (optional, replaces thumbnail)
+  // posture images
+  imageStart?: string  // starting position
+  imageEnd?: string    // end position / peak contraction
+  imageGuide?: string  // technique guide
 }
 
 export interface WorkoutSession {
@@ -45,6 +49,7 @@ export interface ExerciseSessionOverride {
   targetReps?: number
   targetDuration?: number
   restSeconds?: number
+  weightKg?: number  // suggested weight for this exercise this session
 }
 
 // Logged data
@@ -73,8 +78,10 @@ export interface SessionLog {
   exerciseOverrides?: Record<string, ExerciseSessionOverride>
 }
 
+export type AppTheme = 'dark' | 'tech' | 'minimal'
+
 export interface AppState {
   sessions: SessionLog[]
   activeSessionLog: SessionLog | null
-  theme: 'dark' | 'light'
+  theme: AppTheme
 }

@@ -1,9 +1,30 @@
 import { useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { exportJSON, importJSON } from '../utils/storage'
-import { Download, Upload, Trash2, Timer, Moon, Sun, Info } from 'lucide-react'
+import { Download, Upload, Trash2, Timer, Info } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { Timer as TimerComponent } from '../components/Timer'
+import type { AppTheme } from '../types'
+
+const THEMES: { value: AppTheme; label: string; sub: string; preview: string }[] = [
+  {
+    value: 'dark',
+    label: 'Sombre Sport',
+    sub: 'Indigo · violet · bleu',
+    preview: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #3b82f6 100%)',
+  },
+  {
+    value: 'tech',
+    label: 'Tech / Réacteur',
+    sub: 'Rouge · ambre · noir',
+    preview: 'linear-gradient(135deg, #ef4444 0%, #eab308 50%, #f97316 100%)',
+  },
+  {
+    value: 'minimal',
+    label: 'Minimal Sombre',
+    sub: 'Pur noir · sans dégradé',
+    preview: 'linear-gradient(135deg, #1e1e24 0%, #111115 100%)',
+  },
+]
 
 export function Settings() {
   const { state, dispatch } = useStore()
@@ -43,31 +64,39 @@ export function Settings() {
     <div className="flex flex-col gap-6 pb-24 pt-4 px-4 max-w-2xl mx-auto w-full">
       <h1 className="text-2xl font-bold text-white">Réglages</h1>
 
-      {/* Timer demo */}
+      {/* Theme selector */}
       <section>
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Timer de repos</h2>
-        <div className="bg-slate-800/50 border border-slate-700/40 rounded-2xl p-6 flex flex-col items-center">
-          <TimerComponent initialSeconds={90} />
-        </div>
-      </section>
-
-      {/* Theme */}
-      <section>
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Apparence</h2>
-        <div className="bg-slate-800/50 border border-slate-700/40 rounded-2xl overflow-hidden">
-          <button
-            onClick={() => dispatch({ type: 'SET_THEME', payload: state.theme === 'dark' ? 'light' : 'dark' })}
-            className="w-full flex items-center gap-4 px-4 py-4 active:bg-slate-700/30 transition-colors"
-          >
-            {state.theme === 'dark'
-              ? <Moon size={20} className="text-indigo-400" />
-              : <Sun size={20} className="text-yellow-400" />
-            }
-            <span className="text-white font-semibold">
-              {state.theme === 'dark' ? 'Mode sombre' : 'Mode clair'}
-            </span>
-            <span className="ml-auto text-slate-500 text-sm">Changer</span>
-          </button>
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Thème visuel</h2>
+        <div className="grid grid-cols-3 gap-2">
+          {THEMES.map(theme => {
+            const active = state.theme === theme.value
+            return (
+              <button
+                key={theme.value}
+                onClick={() => dispatch({ type: 'SET_THEME', payload: theme.value })}
+                className={`flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all active:scale-95 ${
+                  active
+                    ? 'border-indigo-500/60 bg-indigo-600/10'
+                    : 'border-slate-700/40 bg-slate-800/30 active:bg-slate-700/40'
+                }`}
+              >
+                {/* Color swatch */}
+                <div
+                  className="w-full h-10 rounded-xl flex-shrink-0"
+                  style={{ background: theme.preview }}
+                />
+                <div className="text-center">
+                  <p className={`text-xs font-bold leading-tight ${active ? 'text-indigo-300' : 'text-slate-200'}`}>
+                    {theme.label}
+                  </p>
+                  <p className="text-slate-500 text-[10px] leading-tight mt-0.5">{theme.sub}</p>
+                </div>
+                {active && (
+                  <span className="text-indigo-400 text-[10px] font-bold uppercase tracking-wide">Actif</span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </section>
 
