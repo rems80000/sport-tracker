@@ -1,4 +1,4 @@
-import { Play, Pause, SkipForward, RotateCcw, Plus, Minus, Timer } from 'lucide-react'
+import { Play, Pause, SkipForward, RotateCcw, Plus, Minus } from 'lucide-react'
 import { useTimer } from '../store/timerContext'
 import { formatDuration } from '../utils/storage'
 
@@ -15,25 +15,8 @@ export function FloatingTimer() {
   const { remaining, running, finished, total } = timerState
   const isActive = running || finished || remaining !== total
 
-  // ── Idle ──────────────────────────────────────────────────────────────────
-  if (!isActive) {
-    return (
-      <div className="fixed bottom-[60px] left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-700/40 pb-safe">
-        <div className="max-w-2xl mx-auto px-3 py-2.5 flex items-center gap-2">
-          <Timer size={14} className="text-slate-600 flex-shrink-0" />
-          <span className="text-slate-600 font-medium flex-shrink-0 text-xs">Repos</span>
-          <div className="flex gap-1.5 flex-1 overflow-x-auto">
-            {PRESETS.map(s => (
-              <button key={s} onClick={() => start(s)}
-                className="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-700/80 text-slate-300 active:bg-indigo-600 active:text-white transition-colors">
-                {presetLabel(s)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Idle : rien à afficher — les presets sont dans la ClockBar pendant la séance
+  if (!isActive) return null
 
   // ── Active ─────────────────────────────────────────────────────────────────
   const progress = total > 0 ? (total - remaining) / total : 0

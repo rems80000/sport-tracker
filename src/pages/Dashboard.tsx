@@ -74,10 +74,10 @@ export function Dashboard() {
   const totalDone = state.sessions.filter(s => s.status === 'done' || s.status === 'done_short').length
 
   return (
-    <div className="pb-[160px] lg:pb-[130px] pt-3 px-4 max-w-5xl mx-auto w-full">
+    <div className="pb-[160px] lg:pb-[130px] pt-4 px-5 max-w-5xl mx-auto w-full">
 
       {/* ── Header rock ───────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between mb-4 gap-3">
+      <div className="flex items-start justify-between mb-5 gap-3">
         <div>
           <p className="text-slate-600 text-xs uppercase tracking-[0.2em] font-bold">
             {DAYS[today.getDay()]} {today.getDate()} {MONTHS[today.getMonth()]}
@@ -127,10 +127,10 @@ export function Dashboard() {
       )}
 
       {/* ── Layout 2 colonnes PC ──────────────────────────────────────────── */}
-      <div className="lg:grid lg:grid-cols-[1fr_260px] lg:gap-4 flex flex-col gap-3">
+      <div className="lg:grid lg:grid-cols-[1fr_270px] lg:gap-6 flex flex-col gap-4">
 
         {/* Colonne gauche : sessions ───────────────────────────────────── */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
 
           {/* Aujourd'hui */}
           {todayProgram.length > 0 ? (
@@ -173,7 +173,7 @@ export function Dashboard() {
         </div>
 
         {/* Colonne droite : stats ──────────────────────────────────────── */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
 
           {/* Progression semaine */}
           <div className="bg-slate-900/80 border border-slate-700/50 rounded-2xl p-4"
