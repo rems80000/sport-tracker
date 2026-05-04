@@ -4,8 +4,11 @@ import { PROGRAM, MOTIVATIONAL_QUOTES } from '../data/program'
 import { SessionCard } from '../components/SessionCard'
 import type { SessionStatus } from '../types'
 import { getStartOfWeek } from '../utils/storage'
-import { Flame, Calendar, Zap, PlayCircle } from 'lucide-react'
+import { Flame, Zap, PlayCircle, Radio } from 'lucide-react'
 import { useMemo } from 'react'
+
+// ── Configurer l'URL de la radio ici ──────────────────────────────────────────
+const SPOON_RADIO_URL = 'https://www.spoon.radio'
 
 const DAY_ORDER = ['monday', 'tuesday', 'thursday', 'friday']
 
@@ -43,6 +46,7 @@ export function Dashboard() {
 
   const completedThisWeek = weekLogs.filter(s => s.status === 'done' || s.status === 'done_short').length
   const totalScheduled = 3
+
   const streak = useMemo(() => {
     let count = 0
     const sorted = [...state.sessions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -59,7 +63,6 @@ export function Dashboard() {
 
   const MONTHS = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc']
   const DAYS = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam']
-
   const handleStart = (sessionId: string) => navigate(`/seance/${sessionId}`)
 
   const todayProgram = PROGRAM.filter(s => {
@@ -68,63 +71,76 @@ export function Dashboard() {
   })
 
   const progressPct = totalScheduled > 0 ? (completedThisWeek / totalScheduled) * 100 : 0
+  const totalDone = state.sessions.filter(s => s.status === 'done' || s.status === 'done_short').length
 
   return (
-    <div className="pb-[200px] lg:pb-[140px] pt-3 px-4 max-w-5xl mx-auto w-full">
+    <div className="pb-[160px] lg:pb-[130px] pt-3 px-4 max-w-5xl mx-auto w-full">
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-4">
+      {/* ── Header rock ───────────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between mb-4 gap-3">
         <div>
-          <p className="text-slate-500 text-xs uppercase tracking-widest font-bold">
+          <p className="text-slate-600 text-xs uppercase tracking-[0.2em] font-bold">
             {DAYS[today.getDay()]} {today.getDate()} {MONTHS[today.getMonth()]}
           </p>
-          <h1 className="text-2xl lg:text-4xl font-black text-white tracking-tight leading-none mt-0.5">
-            TRAINING<span className="text-indigo-400 ml-1">_</span>
+          <h1 className="font-black text-white leading-none tracking-tight mt-0.5"
+            style={{ fontSize: 'clamp(28px, 4vw, 52px)' }}>
+            TRAIN
+            <span style={{
+              background: 'linear-gradient(90deg, #6366f1, #f43f5e)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}>HARD</span>
           </h1>
+          <p className="text-slate-600 text-xs mt-0.5 italic">{quote}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
           {streak > 0 && (
-            <div className="flex items-center gap-1.5 bg-orange-500/15 border border-orange-500/30 rounded-xl px-3 py-2">
-              <Flame size={18} className="text-orange-400" />
+            <div className="flex items-center gap-1.5 bg-orange-500/15 border border-orange-500/30 rounded-xl px-3 py-1.5">
+              <Flame size={16} className="text-orange-400" />
               <span className="text-orange-400 font-black text-lg leading-none">{streak}</span>
             </div>
           )}
+          {/* Spoon Radio */}
+          <a href={SPOON_RADIO_URL} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 bg-rose-600/15 border border-rose-500/30 rounded-xl px-3 py-1.5 active:scale-95 transition-transform">
+            <Radio size={13} className="text-rose-400" />
+            <span className="text-rose-400 font-bold text-xs">Spoon Radio</span>
+          </a>
         </div>
       </div>
 
-      {/* ── Active session resume ───────────────────────────────────────── */}
+      {/* ── Session en cours ──────────────────────────────────────────────── */}
       {state.activeSessionLog && (
         <div className="mb-3 bg-orange-500/10 border border-orange-500/40 rounded-2xl p-3 flex items-center gap-3">
           <Zap size={18} className="text-orange-400 flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-orange-400 text-xs font-bold uppercase tracking-wider">En cours</p>
+            <p className="text-orange-400 text-[10px] font-bold uppercase tracking-wider">En cours</p>
             <p className="text-white font-bold text-sm truncate">
               {PROGRAM.find(s => s.id === state.activeSessionLog?.sessionId)?.name}
             </p>
           </div>
-          <button
-            onClick={() => navigate(`/seance/${state.activeSessionLog?.sessionId}`)}
-            className="flex-shrink-0 px-4 py-2.5 rounded-xl bg-orange-500 text-white font-bold text-sm active:scale-95 transition-transform flex items-center gap-1.5"
-          >
-            <PlayCircle size={15} /> Reprendre
+          <button onClick={() => navigate(`/seance/${state.activeSessionLog?.sessionId}`)}
+            className="flex-shrink-0 px-3 py-2 rounded-xl bg-orange-500 text-white font-bold text-xs active:scale-95 transition-transform flex items-center gap-1">
+            <PlayCircle size={14} /> Reprendre
           </button>
         </div>
       )}
 
-      {/* ── Main 2-col layout (PC) ─────────────────────────────────────── */}
-      <div className="lg:grid lg:grid-cols-[1fr_280px] lg:gap-5 flex flex-col gap-4">
+      {/* ── Layout 2 colonnes PC ──────────────────────────────────────────── */}
+      <div className="lg:grid lg:grid-cols-[1fr_260px] lg:gap-4 flex flex-col gap-3">
 
-        {/* LEFT: sessions ─────────────────────────────────────────────── */}
+        {/* Colonne gauche : sessions ───────────────────────────────────── */}
         <div className="flex flex-col gap-3">
 
-          {/* Today hero */}
+          {/* Aujourd'hui */}
           {todayProgram.length > 0 ? (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                <p className="text-indigo-400 text-xs font-black uppercase tracking-widest">Aujourd'hui</p>
+            <div className="rounded-2xl border border-indigo-500/30 overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(244,63,94,0.06) 100%)' }}>
+              <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse flex-shrink-0" />
+                <p className="text-indigo-400 text-xs font-black uppercase tracking-widest">AUJOURD'HUI</p>
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="px-3 pb-3 flex flex-col gap-2">
                 {todayProgram.map(session => (
                   <SessionCard key={session.id} session={session}
                     status={getSessionStatus(session.id, weekLogs, state.activeSessionLog)}
@@ -133,66 +149,74 @@ export function Dashboard() {
               </div>
             </div>
           ) : (
-            <div className="bg-slate-800/30 border border-slate-700/30 rounded-2xl p-4 text-center">
-              <p className="text-slate-600 text-sm">Pas de séance prévue aujourd'hui — récupération active 💪</p>
+            <div className="bg-slate-800/20 border border-slate-700/20 rounded-2xl p-4 text-center">
+              <p className="text-slate-600 text-sm">Pas de séance aujourd'hui — récupération 💪</p>
             </div>
           )}
 
-          {/* Week sessions compact grid */}
+          {/* Programme semaine en grille 2×2 */}
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Calendar size={12} className="text-slate-500" />
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Programme semaine</p>
-            </div>
+            <p className="text-slate-600 text-[10px] font-bold uppercase tracking-widest mb-2 px-1">Programme semaine</p>
             <div className="grid grid-cols-2 gap-2">
               {DAY_ORDER.map(day => {
                 const session = PROGRAM.find(s => s.day === day)!
                 const status = getSessionStatus(session.id, weekLogs, state.activeSessionLog)
                 return (
-                  <div key={session.id} onClick={() => handleStart(session.id)} className="cursor-pointer active:scale-95 transition-transform">
-                    <SessionCard session={session} status={status} onStart={() => handleStart(session.id)} compact />
-                  </div>
+                  <button key={session.id} onClick={() => handleStart(session.id)}
+                    className="text-left active:scale-95 transition-transform">
+                    <SessionCard session={session} status={status} compact />
+                  </button>
                 )
               })}
             </div>
           </div>
         </div>
 
-        {/* RIGHT: stats ──────────────────────────────────────────────── */}
+        {/* Colonne droite : stats ──────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
 
-          {/* Week progress */}
-          <div className="bg-slate-800/50 border border-slate-700/40 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Semaine</span>
-              <span className="font-black text-white text-2xl leading-none">
-                {completedThisWeek}<span className="text-slate-600 text-base font-bold">/{totalScheduled}</span>
-              </span>
+          {/* Progression semaine */}
+          <div className="bg-slate-900/80 border border-slate-700/50 rounded-2xl p-4"
+            style={{ background: 'linear-gradient(135deg, rgba(15,15,25,0.9) 0%, rgba(30,27,75,0.4) 100%)' }}>
+            <div className="flex items-end justify-between mb-3">
+              <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Semaine</span>
+              <div className="text-right">
+                <span className="font-black text-white leading-none" style={{ fontSize: 'clamp(28px, 3vw, 42px)' }}>
+                  {completedThisWeek}
+                </span>
+                <span className="text-slate-600 text-lg font-bold">/{totalScheduled}</span>
+              </div>
             </div>
-            <div className="h-1.5 bg-slate-700/60 rounded-full overflow-hidden mb-2">
+            <div className="h-2 bg-slate-800 rounded-full overflow-hidden mb-2">
               <div className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${progressPct}%`, background: 'linear-gradient(to right, #6366f1, #8b5cf6)' }} />
+                style={{ width: `${progressPct}%`, background: 'linear-gradient(90deg, #6366f1, #f43f5e)' }} />
             </div>
             <div className="flex gap-1.5">
               {Array.from({ length: totalScheduled }).map((_, i) => (
-                <div key={i} className={`h-2 flex-1 rounded-full transition-all duration-500 ${i < completedThisWeek ? 'bg-indigo-500' : 'bg-slate-700/60'}`} />
+                <div key={i} className={`h-2 flex-1 rounded-full transition-all duration-500 ${i < completedThisWeek ? 'bg-indigo-500' : 'bg-slate-800'}`} />
               ))}
             </div>
           </div>
 
-          {/* Quote */}
-          <div className="bg-slate-800/30 border border-slate-700/20 rounded-xl p-3.5">
-            <p className="text-slate-500 text-xs uppercase tracking-wider font-bold mb-1">Motivation</p>
-            <p className="text-slate-300 text-sm italic leading-snug">"{quote}"</p>
-          </div>
-
-          {/* Total sessions stat */}
-          {state.sessions.length > 0 && (
-            <div className="bg-indigo-600/8 border border-indigo-500/20 rounded-xl p-3.5 flex items-center justify-between">
-              <span className="text-slate-400 text-sm">Séances totales</span>
-              <span className="text-indigo-400 font-black text-2xl">{state.sessions.filter(s => s.status === 'done' || s.status === 'done_short').length}</span>
+          {/* Total séances */}
+          {totalDone > 0 && (
+            <div className="flex items-center justify-between bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3">
+              <span className="text-slate-500 text-sm">Total séances</span>
+              <span className="font-black text-indigo-400 text-2xl">{totalDone}</span>
             </div>
           )}
+
+          {/* Spoon Radio (version grande sur PC) */}
+          <a href={SPOON_RADIO_URL} target="_blank" rel="noopener noreferrer"
+            className="hidden lg:flex items-center gap-3 bg-rose-950/40 border border-rose-700/30 rounded-2xl px-4 py-3 active:scale-95 transition-transform hover:border-rose-600/50">
+            <div className="w-9 h-9 rounded-xl bg-rose-600/20 flex items-center justify-center flex-shrink-0">
+              <Radio size={18} className="text-rose-400" />
+            </div>
+            <div>
+              <p className="text-rose-300 font-bold text-sm">Spoon Radio</p>
+              <p className="text-rose-600 text-xs">Ouvrir dans un nouvel onglet →</p>
+            </div>
+          </a>
         </div>
       </div>
     </div>

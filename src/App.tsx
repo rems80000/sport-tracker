@@ -20,14 +20,15 @@ function ClockBar() {
   }, [])
   const p = (n: number) => String(n).padStart(2, '0')
   return (
-    <div className="flex-shrink-0 flex items-center justify-between px-4 lg:px-8 bg-slate-950/95 backdrop-blur-sm border-b border-slate-800/50"
+    <div className="flex-shrink-0 flex items-center justify-center bg-black/95 backdrop-blur-sm border-b border-red-900/30"
       style={{ height: 'clamp(44px, 7vw, 108px)' }}>
-      <span className="hidden lg:block font-black text-slate-700 uppercase tracking-[0.3em]"
-        style={{ fontSize: 'clamp(10px, 1vw, 16px)' }}>Sport Tracker</span>
-      <span className="font-mono tabular-nums font-black text-slate-100 leading-none ml-auto"
+      <span className="font-mono tabular-nums font-black leading-none select-none"
         style={{
-          fontSize: 'clamp(28px, 5.5vw, 80px)',
-          textShadow: '0 0 40px rgba(99,102,241,0.55), 0 0 80px rgba(99,102,241,0.18)',
+          fontSize: 'clamp(30px, 5.5vw, 82px)',
+          color: '#ff2222',
+          textShadow: '0 0 6px #ff0000, 0 0 18px rgba(255,30,30,0.7), 0 0 40px rgba(255,0,0,0.35), 0 0 2px #fff',
+          letterSpacing: '0.06em',
+          fontVariantNumeric: 'tabular-nums',
         }}>
         {p(now.getHours())}:{p(now.getMinutes())}:{p(now.getSeconds())}
       </span>
