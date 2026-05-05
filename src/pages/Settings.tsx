@@ -158,6 +158,25 @@ export function Settings() {
         </div>
       </section>
 
+      {/* Menu latéral */}
+      <section>
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Interface</h2>
+        <div className="bg-slate-800/50 border border-slate-700/40 rounded-2xl overflow-hidden">
+          <button
+            onClick={() => dispatch({ type: 'SET_SIDEBAR_COMPACT', payload: !(state.sidebarCompact ?? false) })}
+            className="w-full flex items-center gap-4 px-4 py-4 active:bg-slate-700/30 transition-colors"
+          >
+            <div className="flex-1 text-left">
+              <p className="text-white font-semibold">Menu latéral discret</p>
+              <p className="text-slate-400 text-xs">Sur PC : icônes seules sans texte (plus compact)</p>
+            </div>
+            <div className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 ${state.sidebarCompact ? 'bg-indigo-600' : 'bg-slate-700'}`}>
+              <div className={`w-5 h-5 rounded-full bg-white m-0.5 transition-transform ${state.sidebarCompact ? 'translate-x-5' : 'translate-x-0'}`} />
+            </div>
+          </button>
+        </div>
+      </section>
+
       {/* PWA tip */}
       <section className="bg-slate-800/30 border border-slate-700/30 rounded-2xl p-4">
         <p className="text-slate-400 text-sm font-semibold mb-1 flex items-center gap-2">

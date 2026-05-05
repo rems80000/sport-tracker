@@ -13,6 +13,7 @@ type Action =
   | { type: 'DELETE_SESSION'; payload: string }
   | { type: 'IMPORT_STATE'; payload: AppState }
   | { type: 'SET_THEME'; payload: AppTheme }
+  | { type: 'SET_SIDEBAR_COMPACT'; payload: boolean }
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -72,6 +73,8 @@ function reducer(state: AppState, action: Action): AppState {
       return action.payload
     case 'SET_THEME':
       return { ...state, theme: action.payload }
+    case 'SET_SIDEBAR_COMPACT':
+      return { ...state, sidebarCompact: action.payload }
     default:
       return state
   }

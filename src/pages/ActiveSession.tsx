@@ -21,14 +21,14 @@ const WEIGHT_PRESETS = [4, 6, 8, 10, 12, 14, 16, 18, 20]
 function ParamStepper({ label, display, onDec, onInc }: { label: string; display: string; onDec: () => void; onInc: () => void }) {
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <span className="text-[9px] text-slate-500 uppercase tracking-wide">{label}</span>
-      <div className="flex items-center gap-0.5">
-        <button onClick={onDec} className="w-6 h-6 rounded-md bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform">
-          <Minus size={9} className="text-slate-300" />
+      <span className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">{label}</span>
+      <div className="flex items-center gap-1">
+        <button onClick={onDec} className="w-7 h-7 rounded-md bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform">
+          <Minus size={10} className="text-slate-300" />
         </button>
-        <span className="text-white text-xs font-bold min-w-[30px] text-center tabular-nums">{display}</span>
-        <button onClick={onInc} className="w-6 h-6 rounded-md bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform">
-          <Plus size={9} className="text-slate-300" />
+        <span className="text-white text-sm font-bold min-w-[36px] text-center tabular-nums">{display}</span>
+        <button onClick={onInc} className="w-7 h-7 rounded-md bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform">
+          <Plus size={10} className="text-slate-300" />
         </button>
       </div>
     </div>
@@ -41,9 +41,9 @@ function PostureSection({ exercise }: { exercise: Pick<Exercise, 'imageStart' | 
   const hasImages = exercise.imageStart || exercise.imageEnd || exercise.imageGuide
   return (
     <div className="border-t border-slate-700/25">
-      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-3 py-1.5 active:bg-slate-800/30 transition-colors">
-        <span className="text-slate-600 font-medium text-[10px]">Posture</span>
-        {open ? <ChevronUp size={11} className="text-slate-700" /> : <ChevronDown size={11} className="text-slate-700" />}
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-3 py-2 active:bg-slate-800/30 transition-colors">
+        <span className="text-slate-500 font-medium text-xs">Posture</span>
+        {open ? <ChevronUp size={12} className="text-slate-600" /> : <ChevronDown size={12} className="text-slate-600" />}
       </button>
       {open && (
         <div className="px-3 pb-2 animate-slide-up">
@@ -56,7 +56,7 @@ function PostureSection({ exercise }: { exercise: Pick<Exercise, 'imageStart' | 
           ) : (
             <div className="flex items-center justify-center bg-slate-800/40 rounded-lg h-16 gap-2">
               <ImageOff size={14} className="text-slate-700" />
-              <span className="text-slate-700 text-[10px]">/public/exercises/</span>
+              <span className="text-slate-700 text-xs">/public/exercises/</span>
             </div>
           )}
         </div>
@@ -90,9 +90,11 @@ interface SetRowProps {
 function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onLog, onStartTimer }: SetRowProps) {
   const isCompleted = logged?.completed ?? false
   const [editing, setEditing] = useState(false)
+  const isCardio = exercise.type === 'cardio' || exercise.category === 'cardio'
   const [reps, setReps] = useState(logged?.reps?.toString() ?? (effectiveSet.targetReps ? String(effectiveSet.targetReps) : ''))
   const [weight, setWeight] = useState(logged?.weightKg?.toString() ?? effectiveWeight?.toString() ?? '')
   const [duration, setDuration] = useState(logged?.durationSeconds?.toString() ?? (effectiveSet.targetDuration ? String(effectiveSet.targetDuration) : ''))
+  const [distance, setDistance] = useState(logged?.distanceMeters?.toString() ?? '')
   const showWeight = exercise.hasWeight || exercise.category === 'weight'
 
   const handleQuickValidate = () => {
@@ -101,62 +103,92 @@ function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onL
   }
 
   if (editing) return (
-    <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-2.5 animate-slide-up">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs font-bold text-indigo-400">Série {setIndex + 1}</span>
+    <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3 animate-slide-up">
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-sm font-bold text-indigo-400">Série {setIndex + 1}</span>
         <button onClick={() => setEditing(false)} className="ml-auto text-slate-500 p-1"><X size={12} /></button>
       </div>
-      <div className="grid grid-cols-2 gap-2 mb-2">
+      <div className="grid grid-cols-2 gap-2 mb-3">
         {exercise.type === 'reps' && (
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-slate-400">Reps</span>
+            <span className="text-xs text-slate-400 font-medium">Reps</span>
             <input type="number" inputMode="numeric" value={reps} onChange={e => setReps(e.target.value)}
-              className="bg-slate-700 rounded-lg px-2 py-2 text-white text-sm font-semibold text-center" placeholder="0" />
+              className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="0" />
+          </label>
+        )}
+        {isCardio && (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400 font-medium">Répétitions / intervalles</span>
+            <input type="number" inputMode="numeric" value={reps} onChange={e => setReps(e.target.value)}
+              className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="0" />
           </label>
         )}
         {showWeight && (
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-slate-400">Charge (kg)</span>
+            <span className="text-xs text-slate-400 font-medium">Charge (kg)</span>
             <input type="number" inputMode="decimal" value={weight} onChange={e => setWeight(e.target.value)}
-              className="bg-slate-700 rounded-lg px-2 py-2 text-white text-sm font-semibold text-center" placeholder="0" />
+              className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="0" />
           </label>
         )}
-        {(exercise.type === 'duration' || exercise.type === 'cardio') && (
+        {(exercise.type === 'duration' || isCardio) && (
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] text-slate-400">Durée (s)</span>
+            <span className="text-xs text-slate-400 font-medium">Durée (s)</span>
             <input type="number" inputMode="numeric" value={duration} onChange={e => setDuration(e.target.value)}
-              className="bg-slate-700 rounded-lg px-2 py-2 text-white text-sm font-semibold text-center" placeholder="0" />
+              className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="0" />
+          </label>
+        )}
+        {isCardio && (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-slate-400 font-medium">Distance (m)</span>
+            <input type="number" inputMode="numeric" value={distance} onChange={e => setDistance(e.target.value)}
+              className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="ex. 150" />
           </label>
         )}
       </div>
-      <button onClick={() => { onLog({ completed: true, reps: reps ? parseInt(reps) : undefined, weightKg: weight ? parseFloat(weight) : undefined, durationSeconds: duration ? parseInt(duration) : undefined }); setEditing(false) }}
-        className="w-full py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold active:scale-95 transition-transform">
+      <button onClick={() => {
+        onLog({
+          completed: true,
+          reps: reps ? parseInt(reps) : undefined,
+          weightKg: weight ? parseFloat(weight) : undefined,
+          durationSeconds: duration ? parseInt(duration) : undefined,
+          distanceMeters: distance ? parseInt(distance) : undefined,
+        })
+        setEditing(false)
+      }}
+        className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold active:scale-95 transition-transform">
         Enregistrer
       </button>
     </div>
   )
 
   if (isCompleted) return (
-    <div className="flex items-center gap-2 py-1 px-0.5">
-      <button onClick={() => onLog({ completed: false })}><CheckCircle2 size={16} className="text-green-400" /></button>
-      <span className="text-green-400 text-xs font-semibold">S{setIndex + 1}</span>
-      <span className="text-green-700 text-[10px]">
+    <div className="flex items-center gap-2 py-1.5 px-0.5">
+      <button onClick={() => onLog({ completed: false })}><CheckCircle2 size={17} className="text-green-400" /></button>
+      <span className="text-green-400 text-sm font-semibold">S{setIndex + 1}</span>
+      <span className="text-green-700 text-xs">
         {logged?.reps != null && `${logged.reps}r`}
         {logged?.weightKg != null && ` ${logged.weightKg}kg`}
         {logged?.durationSeconds != null && ` ${logged.durationSeconds}s`}
+        {logged?.distanceMeters != null && ` ${logged.distanceMeters}m`}
       </span>
-      <button onClick={() => { setReps(logged?.reps?.toString() ?? ''); setWeight(logged?.weightKg?.toString() ?? effectiveWeight?.toString() ?? ''); setDuration(logged?.durationSeconds?.toString() ?? ''); setEditing(true) }}
-        className="ml-auto p-1 text-slate-700 active:text-slate-400"><Pencil size={10} /></button>
+      <button onClick={() => {
+        setReps(logged?.reps?.toString() ?? '')
+        setWeight(logged?.weightKg?.toString() ?? effectiveWeight?.toString() ?? '')
+        setDuration(logged?.durationSeconds?.toString() ?? '')
+        setDistance(logged?.distanceMeters?.toString() ?? '')
+        setEditing(true)
+      }}
+        className="ml-auto p-1 text-slate-700 active:text-slate-400"><Pencil size={11} /></button>
     </div>
   )
 
   return (
-    <div className="flex items-center gap-2 py-1 px-0.5">
-      <Circle size={16} className="text-slate-700 flex-shrink-0" />
-      <span className="text-slate-500 text-xs">S{setIndex + 1}</span>
-      {effectiveSet.targetReps != null && effectiveSet.targetReps > 0 && <span className="text-slate-700 text-[10px]">{effectiveSet.targetReps}r</span>}
-      {effectiveSet.targetDuration != null && <span className="text-slate-700 text-[10px]">{formatDuration(effectiveSet.targetDuration)}</span>}
-      <button onClick={handleQuickValidate} className="ml-auto px-2.5 py-1 rounded-lg bg-indigo-600/80 text-white text-xs font-semibold active:scale-95 transition-transform">
+    <div className="flex items-center gap-2 py-1.5 px-0.5">
+      <Circle size={17} className="text-slate-700 flex-shrink-0" />
+      <span className="text-slate-400 text-sm">S{setIndex + 1}</span>
+      {effectiveSet.targetReps != null && effectiveSet.targetReps > 0 && <span className="text-slate-600 text-xs">{effectiveSet.targetReps}r</span>}
+      {effectiveSet.targetDuration != null && <span className="text-slate-600 text-xs">{formatDuration(effectiveSet.targetDuration)}</span>}
+      <button onClick={handleQuickValidate} className="ml-auto px-3 py-1.5 rounded-lg bg-indigo-600/80 text-white text-xs font-semibold active:scale-95 transition-transform">
         ✓{effectiveSet.restSeconds > 0 ? ` ${effectiveSet.restSeconds}s` : ''}
       </button>
     </div>
@@ -218,55 +250,58 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
 
   return (
     <div className={`rounded-xl border overflow-hidden transition-colors ${borderClass} ${className}`}>
-      {/* ── Cardio : layout horizontal compact sur PC ─────────────────────── */}
+      {/* Cardio : layout horizontal compact sur PC */}
       {isCardio && (
-        <div className="hidden lg:flex items-center gap-3 px-3 py-2">
+        <div className="hidden lg:flex items-center gap-3 px-3 py-2.5">
           <ExerciseImage exercise={exercise} size="sm" className="flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-white font-bold text-sm leading-tight truncate">{exercise.name}</p>
-            {exercise.notes && <p className="text-slate-600 text-[10px]">{exercise.notes}</p>}
+            <p className="text-white font-bold text-base leading-tight">{exercise.name}</p>
+            {exercise.notes && <p className="text-slate-500 text-xs mt-0.5">{exercise.notes}</p>}
           </div>
           <ParamStepper label="Durée" display={`${eff.targetDuration ?? 30}s`}
             onDec={() => update({ targetDuration: Math.max(5, (eff.targetDuration ?? 30) - 15) })}
             onInc={() => update({ targetDuration: (eff.targetDuration ?? 30) + 15 })} />
-          <span className={`text-xs font-bold tabular-nums ${allDone ? 'text-green-400' : 'text-slate-500'}`}>{completedCount}/{total}</span>
+          <ParamStepper label="Répét." display={String(eff.numSets)}
+            onDec={() => update({ numSets: Math.max(1, eff.numSets! - 1) })}
+            onInc={() => update({ numSets: eff.numSets! + 1 })} />
+          <span className={`text-sm font-bold tabular-nums ${allDone ? 'text-green-400' : 'text-slate-500'}`}>{completedCount}/{total}</span>
           {!allDone ? (
             <button onClick={handleValidateExercise}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs active:scale-95 transition-transform">
-              <CheckCircle2 size={13} /> Valider
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm active:scale-95 transition-transform">
+              <CheckCircle2 size={14} /> Valider
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="text-green-400 text-xs font-medium">✓ OK</span>
-              <button onClick={handleResetAll} className="w-7 h-7 rounded-lg bg-slate-700/40 flex items-center justify-center text-slate-500">
-                <RotateCcw size={11} />
+              <span className="text-green-400 text-sm font-medium">✓ OK</span>
+              <button onClick={handleResetAll} className="w-8 h-8 rounded-lg bg-slate-700/40 flex items-center justify-center text-slate-500">
+                <RotateCcw size={12} />
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* ── Mobile header (tous) + PC header pour non-cardio ─────────────── */}
-      <div className={`flex items-center gap-2 px-3 py-2 ${isCardio ? 'lg:hidden' : ''}`}>
+      {/* Mobile header (tous) + PC header pour non-cardio */}
+      <div className={`flex items-center gap-2 px-3 py-2.5 ${isCardio ? 'lg:hidden' : ''}`}>
         <ExerciseImage exercise={exercise} size="sm" />
         <button onClick={() => setOpen(o => !o)} className="flex-1 min-w-0 text-left">
-          <p className="text-white font-bold text-sm leading-tight">{exercise.name}</p>
-          {exercise.notes && <p className="text-slate-600 text-[10px] mt-0.5 leading-tight">{exercise.notes}</p>}
+          <p className="text-white font-bold text-base leading-tight">{exercise.name}</p>
+          {exercise.notes && <p className="text-slate-500 text-xs mt-0.5 leading-tight">{exercise.notes}</p>}
         </button>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <span className={`text-xs font-bold tabular-nums ${allDone ? 'text-green-400' : 'text-slate-400'}`}>{completedCount}/{total}</span>
-          {allDone && <CheckCircle2 size={13} className="text-green-400" />}
+          <span className={`text-sm font-bold tabular-nums ${allDone ? 'text-green-400' : 'text-slate-400'}`}>{completedCount}/{total}</span>
+          {allDone && <CheckCircle2 size={14} className="text-green-400" />}
           <button onClick={() => setOpen(o => !o)} className="p-0.5 text-slate-600">
-            {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         </div>
       </div>
 
-      {/* ── Corps de la carte (mobile always, PC si non-cardio) ───────────── */}
+      {/* Corps de la carte */}
       {open && (
         <div className={isCardio ? 'lg:hidden' : ''}>
           {/* Params */}
-          <div className="px-3 pt-1.5 pb-2 border-t border-slate-700/25 flex flex-wrap justify-around gap-x-2 gap-y-1.5">
+          <div className="px-3 pt-2 pb-2.5 border-t border-slate-700/25 flex flex-wrap justify-around gap-x-3 gap-y-2">
             <ParamStepper label="Séries" display={String(eff.numSets)}
               onDec={() => update({ numSets: Math.max(1, eff.numSets! - 1) })}
               onInc={() => update({ numSets: eff.numSets! + 1 })} />
@@ -275,7 +310,7 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
                 onDec={() => update({ targetReps: Math.max(0, (eff.targetReps ?? 0) - 1) })}
                 onInc={() => update({ targetReps: (eff.targetReps ?? 0) + 1 })} />
             )}
-            {(exercise.type === 'duration' || exercise.type === 'cardio') && (
+            {(exercise.type === 'duration' || isCardio) && (
               <ParamStepper label="Durée" display={`${eff.targetDuration ?? 30}s`}
                 onDec={() => update({ targetDuration: Math.max(5, (eff.targetDuration ?? 30) - 5) })}
                 onInc={() => update({ targetDuration: (eff.targetDuration ?? 30) + 5 })} />
@@ -292,11 +327,11 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
 
           {/* Poids rapides */}
           {showWeight && (
-            <div className="px-3 pb-2 border-t border-slate-700/20 pt-1.5">
+            <div className="px-3 pb-2.5 border-t border-slate-700/20 pt-2">
               <div className="flex gap-1 overflow-x-auto pb-0.5">
                 {WEIGHT_PRESETS.map(kg => (
                   <button key={kg} onClick={() => update({ weightKg: kg })}
-                    className={`flex-shrink-0 w-9 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                    className={`flex-shrink-0 w-10 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                       effectiveWeight === kg ? 'bg-indigo-600 text-white'
                       : !eff.weightKg && lastWeight === kg ? 'bg-indigo-900/50 text-indigo-300 ring-1 ring-indigo-500/30'
                       : 'bg-slate-700/70 text-slate-400 active:bg-slate-600'}`}>
@@ -308,19 +343,19 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
           )}
 
           {/* Bouton valider */}
-          <div className="px-3 pb-2 pt-1 border-t border-slate-700/25">
+          <div className="px-3 pb-2.5 pt-1.5 border-t border-slate-700/25">
             {!allDone ? (
               <button onClick={handleValidateExercise}
-                className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm active:scale-95 transition-transform flex items-center justify-center gap-1.5">
-                <CheckCircle2 size={14} />
+                className="w-full py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm active:scale-95 transition-transform flex items-center justify-center gap-2">
+                <CheckCircle2 size={15} />
                 Valider l'exercice
-                <span className="text-indigo-300 text-[10px] font-normal">({total - completedCount} s.)</span>
+                <span className="text-indigo-300 text-xs font-normal">({total - completedCount} s.)</span>
               </button>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="flex-1 text-center text-green-400 text-xs font-medium">Terminé ✓</span>
+                <span className="flex-1 text-center text-green-400 text-sm font-medium">Terminé ✓</span>
                 <button onClick={handleResetAll} className="w-8 h-8 rounded-xl bg-slate-700/40 flex items-center justify-center text-slate-500 active:scale-95">
-                  <RotateCcw size={11} />
+                  <RotateCcw size={12} />
                 </button>
               </div>
             )}
@@ -329,9 +364,9 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
           {/* Détails séries */}
           <div className="border-t border-slate-700/20">
             <button onClick={() => setShowDetails(d => !d)}
-              className="w-full flex items-center justify-between px-3 py-1 active:bg-slate-800/20 transition-colors">
-              <span className="text-slate-700 text-[10px]">Modifier série par série</span>
-              {showDetails ? <ChevronUp size={10} className="text-slate-700" /> : <ChevronDown size={10} className="text-slate-700" />}
+              className="w-full flex items-center justify-between px-3 py-1.5 active:bg-slate-800/20 transition-colors">
+              <span className="text-slate-600 text-xs">Modifier série par série</span>
+              {showDetails ? <ChevronUp size={11} className="text-slate-700" /> : <ChevronDown size={11} className="text-slate-700" />}
             </button>
             {showDetails && (
               <div className="px-3 pb-2 flex flex-col border-t border-slate-700/20 pt-1 animate-slide-up">
@@ -374,7 +409,6 @@ export function ActiveSession() {
   const [feeling, setFeeling] = useState<Feeling>('normal')
   const [sessionComment, setSessionComment] = useState('')
   const startTimeRef = useRef(new Date().toISOString())
-
 
   const lastWeightByExercise = useMemo(() => {
     const result: Record<string, number> = {}
@@ -424,35 +458,34 @@ export function ActiveSession() {
   }
   const handleCancel = () => { dispatch({ type: 'CANCEL_SESSION' }); navigate('/') }
 
-
   return (
-    <div className="flex flex-col pb-[140px] max-w-5xl mx-auto w-full">
+    <div className="flex flex-col pb-[80px] lg:pb-6 max-w-5xl mx-auto w-full">
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-slate-950/97 backdrop-blur border-b border-slate-700/50 px-3 pt-2.5 pb-2">
         <div className="flex items-center gap-2 mb-1.5">
           <button onClick={() => navigate(-1)} className="p-1.5 rounded-xl text-slate-400 active:bg-slate-800 transition-colors flex-shrink-0">
-            <ArrowLeft size={17} />
+            <ArrowLeft size={18} />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-slate-500">{session.dayLabel}</p>
-            <h2 className="text-sm font-bold text-white leading-tight truncate">{session.name}</h2>
+            <p className="text-xs text-slate-500">{session.dayLabel}</p>
+            <h2 className="text-base font-bold text-white leading-tight truncate">{session.name}</h2>
           </div>
           <button onClick={() => setShowFinish(true)}
-            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-green-600 text-white font-bold text-xs active:scale-95 transition-transform">
-            <Flag size={12} /> Terminer
+            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-600 text-white font-bold text-sm active:scale-95 transition-transform">
+            <Flag size={13} /> Terminer
           </button>
           <button onClick={handleCancel} className="p-1.5 rounded-xl text-slate-600 active:bg-slate-800 transition-colors flex-shrink-0">
-            <X size={15} />
+            <X size={16} />
           </button>
         </div>
-        <div className="h-1 bg-slate-800/80 rounded-full">
+        <div className="h-1.5 bg-slate-800/80 rounded-full">
           <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${progress * 100}%` }} />
         </div>
-        <p className="text-[10px] text-slate-600 text-center mt-0.5">{completedSets} / {totalSets} séries</p>
+        <p className="text-xs text-slate-500 text-center mt-0.5">{completedSets} / {totalSets} séries</p>
       </div>
 
-      {/* Grille exercices — 2 colonnes sur PC, cardio pleine largeur */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 px-3 pt-3">
+      {/* Grille exercices */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 px-3 pt-3">
         {session.exercises.map(ex => {
           const isCardio = ex.type === 'cardio' || ex.category === 'cardio'
           return (
@@ -464,25 +497,25 @@ export function ActiveSession() {
         })}
       </div>
 
-      {/* Actions secondaires en bas du scroll */}
-      <div className="px-3 pt-3 pb-2 flex flex-col gap-2">
+      {/* Bouton Terminer in-flow — grand, visible, juste sous les exercices */}
+      <div className="px-3 pt-4 pb-2">
+        <button onClick={() => setShowFinish(true)}
+          className="w-full py-4 rounded-2xl bg-green-600 text-white font-bold text-base active:scale-95 transition-transform shadow-lg shadow-green-900/30 flex items-center justify-center gap-2">
+          <Flag size={18} /> Terminer la séance
+        </button>
+      </div>
+
+      {/* Actions secondaires */}
+      <div className="px-3 pb-3 flex flex-col gap-2">
         {session.hasShortVersion && (
           <button onClick={() => handleFinish(true)}
-            className="w-full py-2.5 rounded-2xl bg-teal-600/70 text-white font-semibold text-sm active:scale-95 transition-transform">
+            className="w-full py-3 rounded-2xl bg-teal-600/70 text-white font-semibold text-sm active:scale-95 transition-transform">
             Valider séance courte (≥ 10 min)
           </button>
         )}
         <button onClick={handleCancel}
-          className="w-full py-2.5 rounded-2xl bg-slate-800/60 text-slate-400 font-semibold text-sm active:scale-95 transition-transform flex items-center justify-center gap-2">
+          className="w-full py-3 rounded-2xl bg-slate-800/60 text-slate-400 font-semibold text-sm active:scale-95 transition-transform flex items-center justify-center gap-2">
           <X size={14} /> Abandonner
-        </button>
-      </div>
-
-      {/* Bouton Terminer fixe — unique, au-dessus de la nav */}
-      <div className="fixed left-0 right-0 z-[45] px-4 pb-safe" style={{ bottom: '62px' }}>
-        <button onClick={() => setShowFinish(true)}
-          className="w-full max-w-5xl mx-auto flex items-center justify-center gap-2 py-3 rounded-2xl bg-green-600 backdrop-blur text-white font-bold text-sm active:scale-95 transition-transform shadow-lg shadow-green-900/40">
-          <Flag size={15} /> Terminer la séance
         </button>
       </div>
 

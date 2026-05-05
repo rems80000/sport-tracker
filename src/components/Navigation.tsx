@@ -12,7 +12,7 @@ const NAV_ITEMS = [
 
 export function Navigation() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900 border-t border-slate-700/60 pb-safe">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-900 border-t border-slate-700/60 pb-safe">
       <div className="flex items-stretch max-w-2xl mx-auto">
         {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink

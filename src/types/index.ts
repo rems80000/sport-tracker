@@ -60,6 +60,7 @@ export interface LoggedSet {
   reps?: number
   weightKg?: number
   durationSeconds?: number
+  distanceMeters?: number
   comment?: string
   timestamp: string
 }
@@ -84,4 +85,5 @@ export interface AppState {
   sessions: SessionLog[]
   activeSessionLog: SessionLog | null
   theme: AppTheme
+  sidebarCompact?: boolean
 }
