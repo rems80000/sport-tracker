@@ -74,7 +74,7 @@ export function Dashboard() {
   const totalDone = state.sessions.filter(s => s.status === 'done' || s.status === 'done_short').length
 
   return (
-    <div className="pb-[160px] lg:pb-[130px] pt-4 px-5 max-w-5xl mx-auto w-full">
+    <div className="pb-[160px] lg:pb-[130px] pt-6 px-5 max-w-5xl mx-auto w-full">
 
       {/* ── Header rock ───────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between mb-5 gap-3">

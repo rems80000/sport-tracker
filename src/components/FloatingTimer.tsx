@@ -1,4 +1,5 @@
 import { Play, Pause, SkipForward, RotateCcw, Plus, Minus } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import { useTimer } from '../store/timerContext'
 import { formatDuration } from '../utils/storage'
 
@@ -15,8 +16,9 @@ export function FloatingTimer() {
   const { remaining, running, finished, total } = timerState
   const isActive = running || finished || remaining !== total
 
-  // Idle : rien à afficher — les presets sont dans la ClockBar pendant la séance
-  if (!isActive) return null
+  const location = useLocation()
+  // Idle ou page séance : rien à afficher (ClockBar gère le timer sur /seance/)
+  if (!isActive || location.pathname.startsWith('/seance/')) return null
 
   // ── Active ─────────────────────────────────────────────────────────────────
   const progress = total > 0 ? (total - remaining) / total : 0

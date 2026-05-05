@@ -15,7 +15,7 @@ export function SessionStarter() {
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-24 pt-4 px-4 max-w-2xl mx-auto w-full">
+    <div className="flex flex-col gap-6 pb-[130px] pt-4 px-4 max-w-4xl mx-auto w-full">
       <div>
         <h1 className="text-2xl font-bold text-white">Lancer une séance</h1>
         <p className="text-slate-400 text-sm mt-1">Choisissez votre séance du jour</p>

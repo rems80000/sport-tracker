@@ -87,7 +87,7 @@ export function Progress() {
   }, [state.sessions])
 
   return (
-    <div className="flex flex-col gap-6 pb-24 pt-4 px-4 max-w-2xl mx-auto w-full">
+    <div className="flex flex-col gap-6 pb-[130px] pt-4 px-4 max-w-4xl mx-auto w-full">
       <h1 className="text-2xl font-bold text-white">Progression</h1>
 
       {state.sessions.length === 0 ? (

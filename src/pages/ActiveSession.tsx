@@ -212,7 +212,9 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
     }
   }
 
-  const borderClass = allDone ? 'border-green-500/20 bg-green-500/4' : 'border-slate-700/40 bg-slate-800/20'
+  const borderClass = allDone
+    ? 'border-green-400/50 bg-green-500/5 shadow-[0_0_14px_rgba(74,222,128,0.10)]'
+    : 'border-indigo-500/35 bg-slate-800/40 shadow-[0_2px_16px_rgba(0,0,0,0.35)]'
 
   return (
     <div className={`rounded-xl border overflow-hidden transition-colors ${borderClass} ${className}`}>
@@ -365,7 +367,7 @@ export function ActiveSession() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
   const { state, dispatch } = useStore()
-  const { start: startTimer, timerState } = useTimer()
+  const { start: startTimer } = useTimer()
   const session = sessionId ? SESSION_BY_ID[sessionId] : null
 
   const [showFinish, setShowFinish] = useState(false)
@@ -373,8 +375,6 @@ export function ActiveSession() {
   const [sessionComment, setSessionComment] = useState('')
   const startTimeRef = useRef(new Date().toISOString())
 
-  // Terminer button fixed : au-dessus de la nav uniquement (plus d'idle timer en bas)
-  const timerIsActive = timerState.running || timerState.finished || timerState.remaining !== timerState.total
 
   const lastWeightByExercise = useMemo(() => {
     const result: Record<string, number> = {}
@@ -424,11 +424,9 @@ export function ActiveSession() {
   }
   const handleCancel = () => { dispatch({ type: 'CANCEL_SESSION' }); navigate('/') }
 
-  // Hauteur du footer fixe : nav(60) + bouton Terminer(~52) = 112px ; si timer actif, monte d'autant
-  const terminateBottom = timerIsActive ? 262 : 62
 
   return (
-    <div className="flex flex-col pb-[280px] max-w-5xl mx-auto w-full">
+    <div className="flex flex-col pb-[140px] max-w-5xl mx-auto w-full">
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-slate-950/97 backdrop-blur border-b border-slate-700/50 px-3 pt-2.5 pb-2">
         <div className="flex items-center gap-2 mb-1.5">
@@ -466,12 +464,8 @@ export function ActiveSession() {
         })}
       </div>
 
-      {/* Bouton Terminer en bas du scroll (jamais masqué) */}
+      {/* Actions secondaires en bas du scroll */}
       <div className="px-3 pt-3 pb-2 flex flex-col gap-2">
-        <button onClick={() => setShowFinish(true)}
-          className="w-full py-3.5 rounded-2xl bg-green-600 text-white font-bold text-base active:scale-95 transition-transform flex items-center justify-center gap-2">
-          <Flag size={17} /> Terminer la séance
-        </button>
         {session.hasShortVersion && (
           <button onClick={() => handleFinish(true)}
             className="w-full py-2.5 rounded-2xl bg-teal-600/70 text-white font-semibold text-sm active:scale-95 transition-transform">
@@ -484,11 +478,10 @@ export function ActiveSession() {
         </button>
       </div>
 
-      {/* Bouton Terminer fixe — au-dessus de la nav, décale si timer actif */}
-      <div className="fixed left-0 right-0 z-[45] px-4"
-        style={{ bottom: `${terminateBottom}px` }}>
+      {/* Bouton Terminer fixe — unique, au-dessus de la nav */}
+      <div className="fixed left-0 right-0 z-[45] px-4 pb-safe" style={{ bottom: '62px' }}>
         <button onClick={() => setShowFinish(true)}
-          className="w-full max-w-5xl mx-auto flex items-center justify-center gap-2 py-3 rounded-2xl bg-green-700/90 backdrop-blur text-white font-bold text-sm active:scale-95 transition-transform border border-green-500/30">
+          className="w-full max-w-5xl mx-auto flex items-center justify-center gap-2 py-3 rounded-2xl bg-green-600 backdrop-blur text-white font-bold text-sm active:scale-95 transition-transform shadow-lg shadow-green-900/40">
           <Flag size={15} /> Terminer la séance
         </button>
       </div>
