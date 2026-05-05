@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
-import { PROGRAM, MOTIVATIONAL_QUOTES, SESSION_BY_ID } from '../data/program'
+import { PROGRAM, buildSessionById } from '../data/program'
 import { SessionCard } from '../components/SessionCard'
-import type { SessionStatus, SessionLog } from '../types'
+import type { SessionStatus, SessionLog, WorkoutSession } from '../types'
 import { getStartOfWeek } from '../utils/storage'
 import { Flame, Zap, PlayCircle, Radio } from 'lucide-react'
 import { useMemo } from 'react'
@@ -13,11 +13,11 @@ const BODYWEIGHT_KG = 70
 
 // ─── Tonnage ──────────────────────────────────────────────────────────────────
 
-function calcSessionTonnageKg(log: SessionLog): number {
+function calcSessionTonnageKg(log: SessionLog, sessionById: Record<string, WorkoutSession>): number {
   let total = 0
   for (const set of log.sets) {
     if (!set.completed || !set.reps || set.reps <= 0) continue
-    const session = SESSION_BY_ID[log.sessionId]
+    const session = sessionById[log.sessionId]
     const ex = session?.exercises.find(e => e.id === set.exerciseId)
     if (!ex) continue
     const isBodyweight = ex.category === 'bodyweight' && !ex.hasWeight
@@ -65,10 +65,8 @@ export function Dashboard() {
   const today = new Date()
   const weekLogs = useMemo(() => getWeekSessions(state.sessions), [state.sessions])
 
-  const quote = useMemo(() => {
-    const idx = Math.floor(Date.now() / 86400000) % MOTIVATIONAL_QUOTES.length
-    return MOTIVATIONAL_QUOTES[idx]
-  }, [])
+  const effectiveProgram = useMemo(() => state.customProgram ?? PROGRAM, [state.customProgram])
+  const sessionById = useMemo(() => buildSessionById(state.customProgram), [state.customProgram])
 
   const doneLogs = weekLogs.filter(s => s.status === 'done' || s.status === 'done_short')
   const completedThisWeek = doneLogs.length
@@ -91,8 +89,8 @@ export function Dashboard() {
   // ── Tonnage ────────────────────────────────────────────────────────────────
 
   const weekTonnageKg = useMemo(
-    () => doneLogs.reduce((acc, s) => acc + calcSessionTonnageKg(s), 0),
-    [doneLogs]
+    () => doneLogs.reduce((acc, s) => acc + calcSessionTonnageKg(s, sessionById), 0),
+    [doneLogs, sessionById]
   )
 
   const monthTonnageKg = useMemo(() => {
@@ -103,19 +101,19 @@ export function Dashboard() {
         return d.getFullYear() === y && d.getMonth() === m &&
           (s.status === 'done' || s.status === 'done_short')
       })
-      .reduce((acc, s) => acc + calcSessionTonnageKg(s), 0)
-  }, [state.sessions])
+      .reduce((acc, s) => acc + calcSessionTonnageKg(s, sessionById), 0)
+  }, [state.sessions, sessionById])
 
   const weekDayTonnage = useMemo(() =>
     DAY_ORDER.map(day => {
-      const session = PROGRAM.find(s => s.day === day)!
+      const session = effectiveProgram.find(s => s.day === day)!
       const log = weekLogs.find(s =>
-        s.sessionId === session.id && (s.status === 'done' || s.status === 'done_short')
+        s.sessionId === session?.id && (s.status === 'done' || s.status === 'done_short')
       )
       const label: Record<string, string> = { monday: 'Lun', tuesday: 'Mar', thursday: 'Jeu', friday: 'Ven' }
-      return { day: label[day] ?? day, kg: log ? calcSessionTonnageKg(log) : 0 }
+      return { day: label[day] ?? day, kg: log ? calcSessionTonnageKg(log, sessionById) : 0 }
     }),
-    [weekLogs]
+    [weekLogs, effectiveProgram, sessionById]
   )
 
   const monthlyHistory = useMemo(() =>
@@ -128,21 +126,19 @@ export function Dashboard() {
           return sd.getFullYear() === y && sd.getMonth() === m &&
             (s.status === 'done' || s.status === 'done_short')
         })
-        .reduce((acc, s) => acc + calcSessionTonnageKg(s), 0)
+        .reduce((acc, s) => acc + calcSessionTonnageKg(s, sessionById), 0)
       return {
         label: d.toLocaleDateString('fr-FR', { month: 'short' }),
         kg: Math.round(kg),
         isCurrent: i === 11,
       }
     }),
-    [state.sessions]
+    [state.sessions, sessionById]
   )
 
-  const MONTHS = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc']
-  const DAYS = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam']
   const handleStart = (sessionId: string) => navigate(`/seance/${sessionId}`)
 
-  const todayProgram = PROGRAM.filter(s => {
+  const todayProgram = effectiveProgram.filter(s => {
     const dayMap: Record<string, number> = { sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6 }
     return dayMap[s.day] === today.getDay()
   })
@@ -152,48 +148,16 @@ export function Dashboard() {
   const hasTonnage = weekTonnageKg > 0 || monthTonnageKg > 0
 
   return (
-    <div className="pb-[80px] lg:pb-8 pt-6 px-6 lg:px-8 max-w-[1400px] mx-auto w-full">
-
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between mb-5 gap-3">
-        <div>
-          <p className="text-slate-600 text-xs uppercase tracking-[0.2em] font-bold">
-            {DAYS[today.getDay()]} {today.getDate()} {MONTHS[today.getMonth()]}
-          </p>
-          <h1 className="font-black text-white leading-none tracking-tight mt-0.5"
-            style={{ fontSize: 'clamp(28px, 4vw, 52px)' }}>
-            TRAIN
-            <span style={{
-              background: 'linear-gradient(90deg, #6366f1, #f43f5e)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}>HARD</span>
-          </h1>
-          <p className="text-slate-600 text-xs mt-0.5 italic">{quote}</p>
-        </div>
-        <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          {streak > 0 && (
-            <div className="flex items-center gap-1.5 bg-orange-500/15 border border-orange-500/30 rounded-xl px-3 py-1.5">
-              <Flame size={16} className="text-orange-400" />
-              <span className="text-orange-400 font-black text-lg leading-none">{streak}</span>
-            </div>
-          )}
-          <a href={SPOON_RADIO_URL} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 bg-rose-600/15 border border-rose-500/30 rounded-xl px-3 py-1.5 active:scale-95 transition-transform">
-            <Radio size={13} className="text-rose-400" />
-            <span className="text-rose-400 font-bold text-xs">Spoon Radio</span>
-          </a>
-        </div>
-      </div>
+    <div className="pb-[80px] lg:pb-6 pt-4 px-4 lg:px-6 max-w-[1400px] mx-auto w-full">
 
       {/* ── Session en cours ────────────────────────────────────────────────── */}
       {state.activeSessionLog && (
-        <div className="mb-3 bg-orange-500/10 border border-orange-500/40 rounded-2xl p-3 flex items-center gap-3">
+        <div className="mb-4 bg-orange-500/10 border border-orange-500/40 rounded-2xl p-3 flex items-center gap-3">
           <Zap size={18} className="text-orange-400 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-orange-400 text-[10px] font-bold uppercase tracking-wider">En cours</p>
             <p className="text-white font-bold text-sm truncate">
-              {PROGRAM.find(s => s.id === state.activeSessionLog?.sessionId)?.name}
+              {sessionById[state.activeSessionLog.sessionId]?.name ?? state.activeSessionLog.sessionId}
             </p>
           </div>
           <button onClick={() => navigate(`/seance/${state.activeSessionLog?.sessionId}`)}
@@ -236,7 +200,8 @@ export function Dashboard() {
             <p className="text-slate-600 text-[10px] font-bold uppercase tracking-widest mb-2 px-1">Programme semaine</p>
             <div className="grid grid-cols-2 gap-2">
               {DAY_ORDER.map(day => {
-                const session = PROGRAM.find(s => s.day === day)!
+                const session = effectiveProgram.find(s => s.day === day)
+                if (!session) return null
                 const status = getSessionStatus(session.id, weekLogs, state.activeSessionLog)
                 return (
                   <button key={session.id} onClick={() => handleStart(session.id)}
@@ -251,6 +216,22 @@ export function Dashboard() {
 
         {/* Colonne droite : stats */}
         <div className="flex flex-col gap-4">
+
+          {/* Streak + radio */}
+          <div className="flex items-center gap-3">
+            {streak > 0 && (
+              <div className="flex items-center gap-1.5 bg-orange-500/15 border border-orange-500/30 rounded-xl px-3 py-2">
+                <Flame size={15} className="text-orange-400" />
+                <span className="text-orange-400 font-black text-base leading-none">{streak}</span>
+                <span className="text-orange-600 text-xs font-semibold">j.</span>
+              </div>
+            )}
+            <a href={SPOON_RADIO_URL} target="_blank" rel="noopener noreferrer"
+              className="flex lg:hidden items-center gap-1.5 bg-rose-600/15 border border-rose-500/30 rounded-xl px-3 py-2 active:scale-95 transition-transform">
+              <Radio size={13} className="text-rose-400" />
+              <span className="text-rose-400 font-bold text-xs">Spoon Radio</span>
+            </a>
+          </div>
 
           {/* Progression semaine */}
           <div className="bg-slate-900/80 border border-slate-700/50 rounded-2xl p-4"

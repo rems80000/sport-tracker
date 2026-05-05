@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { StoreContext, useStore, useStoreReducer } from './store/useStore'
 import { TimerProvider } from './store/timerContext'
@@ -13,8 +13,13 @@ import { ActiveSession } from './pages/ActiveSession'
 import { History } from './pages/History'
 import { Progress } from './pages/Progress'
 import { Settings } from './pages/Settings'
+import { Vacances } from './pages/Vacances'
+import { MOTIVATIONAL_QUOTES } from './data/program'
 import { formatDuration } from './utils/storage'
 import { Timer, Play, Pause, SkipForward } from 'lucide-react'
+
+const FR_DAYS_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+const FR_MONTHS_FULL = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
 
 function ClockBar() {
   const [now, setNow] = useState(() => new Date())
@@ -31,32 +36,59 @@ function ClockBar() {
   const isSessionPage = location.pathname.startsWith('/seance/')
   const timerIsActive = running || finished || remaining !== total
 
+  const dateStr = `${FR_DAYS_FULL[now.getDay()]} ${String(now.getDate()).padStart(2, '0')} ${FR_MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`
+  const quote = useMemo(() => {
+    const idx = Math.floor(Date.now() / 86400000) % MOTIVATIONAL_QUOTES.length
+    return MOTIVATIONAL_QUOTES[idx]
+  }, [])
+
   return (
     <>
       <div className="flex-shrink-0 flex items-center justify-center bg-black/97 border-b border-red-900/25 relative"
         style={{ height: 'clamp(44px, 7vw, 108px)' }}>
 
-        {/* Compact timer indicator — uniquement pendant une séance active */}
-        {isSessionPage && timerIsActive && (
-          <div className="absolute left-2 lg:left-5 flex items-center gap-1">
-            <button onClick={toggle}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg border font-mono font-bold text-[10px] lg:text-xs tabular-nums ${
-                finished
-                  ? 'bg-green-900/40 border-green-500/30 text-green-300'
-                  : running
-                  ? 'bg-orange-900/40 border-orange-500/30 text-orange-300'
-                  : 'bg-indigo-900/40 border-indigo-500/30 text-indigo-300'
-              }`}>
-              {finished ? '✓ OK' : formatDuration(remaining)}
-              {running ? <Pause size={8} /> : <Play size={8} />}
-            </button>
-            {!finished && (
-              <button onClick={skip} className="p-1 rounded-lg bg-slate-800/70 border border-slate-700/30 text-slate-500 active:text-slate-300">
-                <SkipForward size={8} />
+        {/* Zone gauche : TRAINHARD + date + quote (ou timer compact pendant séance) */}
+        <div className="absolute left-2 lg:left-5 flex flex-col justify-center" style={{ maxWidth: 'clamp(80px, 30vw, 340px)' }}>
+          {isSessionPage && timerIsActive ? (
+            <div className="flex items-center gap-1">
+              <button onClick={toggle}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg border font-mono font-bold text-[10px] lg:text-xs tabular-nums ${
+                  finished
+                    ? 'bg-green-900/40 border-green-500/30 text-green-300'
+                    : running
+                    ? 'bg-orange-900/40 border-orange-500/30 text-orange-300'
+                    : 'bg-indigo-900/40 border-indigo-500/30 text-indigo-300'
+                }`}>
+                {finished ? '✓ OK' : formatDuration(remaining)}
+                {running ? <Pause size={8} /> : <Play size={8} />}
               </button>
-            )}
-          </div>
-        )}
+              {!finished && (
+                <button onClick={skip} className="p-1 rounded-lg bg-slate-800/70 border border-slate-700/30 text-slate-500 active:text-slate-300">
+                  <SkipForward size={8} />
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <a href="https://www.spoonradio.com/" target="_blank" rel="noopener noreferrer" className="hidden lg:block flex-shrink-0 active:scale-95 transition-transform" title="Spoon Radio">
+                <img
+                  src="/final-rems-flag.png"
+                  alt="Rems Flag — Spoon Radio"
+                  className="rounded-lg object-contain"
+                  style={{ height: 'clamp(42px, 7.2vw, 104px)', width: 'auto', maxWidth: 'clamp(42px, 7.2vw, 104px)' }}
+                />
+              </a>
+              <div className="flex flex-col justify-center">
+                <span className="font-black leading-none select-none" style={{ fontSize: 'clamp(14px, 2.2vw, 32px)' }}>
+                  <span className="text-white">TRAIN</span>
+                  <span style={{ background: 'linear-gradient(90deg,#6366f1,#f43f5e)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>HARD</span>
+                </span>
+                <span className="text-slate-400 font-semibold leading-tight select-none" style={{ fontSize: 'clamp(9px, 1.1vw, 15px)', marginTop: '3px' }}>{dateStr}</span>
+                <span className="text-slate-500 font-medium italic leading-tight select-none hidden lg:block" style={{ fontSize: 'clamp(8px, 0.9vw, 12px)', marginTop: '2px' }}>{quote}</span>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Horloge rouge LED — centrée */}
         <span className="font-mono tabular-nums font-black leading-none select-none"
@@ -104,7 +136,7 @@ function AppInner() {
       <ClockBar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto lg:pl-6">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/programme" element={<Program />} />
@@ -112,6 +144,7 @@ function AppInner() {
             <Route path="/seance/:sessionId" element={<ActiveSession />} />
             <Route path="/historique" element={<History />} />
             <Route path="/progression" element={<Progress />} />
+            <Route path="/vacances" element={<Vacances />} />
             <Route path="/parametres" element={<Settings />} />
           </Routes>
         </main>

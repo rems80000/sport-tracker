@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect } from 'react'
 import type { Dispatch } from 'react'
-import type { AppState, AppTheme, SessionLog, LoggedSet, ExerciseSessionOverride } from '../types'
+import type { AppState, AppTheme, SessionLog, LoggedSet, ExerciseSessionOverride, WorkoutSession } from '../types'
 import { loadState, saveState } from '../utils/storage'
 
 type Action =
@@ -11,9 +11,12 @@ type Action =
   | { type: 'COMPLETE_SESSION'; payload: Partial<SessionLog> }
   | { type: 'CANCEL_SESSION' }
   | { type: 'DELETE_SESSION'; payload: string }
+  | { type: 'UPDATE_SESSION_LOG'; payload: SessionLog }
   | { type: 'IMPORT_STATE'; payload: AppState }
   | { type: 'SET_THEME'; payload: AppTheme }
   | { type: 'SET_SIDEBAR_COMPACT'; payload: boolean }
+  | { type: 'SET_CUSTOM_PROGRAM'; payload: WorkoutSession[] }
+  | { type: 'RESET_PROGRAM' }
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -69,12 +72,18 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, activeSessionLog: null }
     case 'DELETE_SESSION':
       return { ...state, sessions: state.sessions.filter(s => s.id !== action.payload) }
+    case 'UPDATE_SESSION_LOG':
+      return { ...state, sessions: state.sessions.map(s => s.id === action.payload.id ? action.payload : s) }
     case 'IMPORT_STATE':
       return action.payload
     case 'SET_THEME':
       return { ...state, theme: action.payload }
     case 'SET_SIDEBAR_COMPACT':
       return { ...state, sidebarCompact: action.payload }
+    case 'SET_CUSTOM_PROGRAM':
+      return { ...state, customProgram: action.payload }
+    case 'RESET_PROGRAM':
+      return { ...state, customProgram: undefined }
     default:
       return state
   }

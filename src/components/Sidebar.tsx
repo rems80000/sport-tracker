@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, Dumbbell, History, TrendingUp, Settings, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Dumbbell, History, TrendingUp, Settings, PanelLeftClose, PanelLeft, Sun } from 'lucide-react'
 import { useStore } from '../store/useStore'
 
 const NAV_ITEMS = [
@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/seance', icon: Dumbbell, label: 'Séance' },
   { to: '/historique', icon: History, label: 'Historique' },
   { to: '/progression', icon: TrendingUp, label: 'Progrès' },
+  { to: '/vacances', icon: Sun, label: 'Vacances' },
   { to: '/parametres', icon: Settings, label: 'Réglages' },
 ]
 

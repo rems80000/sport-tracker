@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
-import { SESSION_BY_ID } from '../data/program'
+import { buildSessionById } from '../data/program'
 import { useTimer } from '../store/timerContext'
 import { ExerciseImage } from '../components/ExerciseImage'
 import type { Exercise, ExerciseSet, LoggedSet, Feeling, ExerciseSessionOverride } from '../types'
@@ -15,23 +15,95 @@ function generateId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
-const WEIGHT_PRESETS = [4, 6, 8, 10, 12, 14, 16, 18, 20]
+const WEIGHT_PRESETS = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
 
-// ─── ParamStepper ─────────────────────────────────────────────────────────────
-function ParamStepper({ label, display, onDec, onInc }: { label: string; display: string; onDec: () => void; onInc: () => void }) {
+// ─── NumericStepper ────────────────────────────────────────────────────────────
+function NumericStepper({ label, value, onChange, unit = '', min = 0, max, step = 1, displayValue }: {
+  label: string; value: number; onChange: (v: number) => void
+  unit?: string; min?: number; max?: number; step?: number
+  displayValue?: string // if provided, show static text (for "Max" etc.) instead of input
+}) {
+  const dec = () => onChange(Math.max(min, value - step))
+  const inc = () => onChange(max !== undefined ? Math.min(max, value + step) : value + step)
   return (
     <div className="flex flex-col items-center gap-0.5">
       <span className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">{label}</span>
       <div className="flex items-center gap-1">
-        <button onClick={onDec} className="w-7 h-7 rounded-md bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform">
+        <button onClick={dec} className="w-7 h-7 rounded-md bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform">
           <Minus size={10} className="text-slate-300" />
         </button>
-        <span className="text-white text-sm font-bold min-w-[36px] text-center tabular-nums">{display}</span>
-        <button onClick={onInc} className="w-7 h-7 rounded-md bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform">
+        {displayValue !== undefined
+          ? <span className="text-white text-sm font-bold min-w-[36px] text-center tabular-nums">{displayValue}</span>
+          : (
+            <div className="flex items-center">
+              <input
+                type="number" inputMode="numeric" value={value}
+                onChange={e => {
+                  const v = Number(e.target.value)
+                  if (!isNaN(v)) onChange(max !== undefined ? Math.min(max, Math.max(min, v)) : Math.max(min, v))
+                }}
+                className="w-12 text-center bg-slate-700/60 border border-slate-600/30 rounded text-white text-sm font-bold tabular-nums px-1 py-0.5 focus:outline-none focus:border-indigo-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              {unit && <span className="text-slate-400 text-[11px] ml-0.5">{unit}</span>}
+            </div>
+          )
+        }
+        <button onClick={inc} className="w-7 h-7 rounded-md bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform">
           <Plus size={10} className="text-slate-300" />
         </button>
       </div>
     </div>
+  )
+}
+
+// ─── PostureLightbox ──────────────────────────────────────────────────────────
+function PostureLightbox({ src, name, onClose }: { src: string; name: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div className="relative max-w-[90vw] max-h-[85dvh] flex flex-col items-center" onClick={e => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          className="absolute -top-10 right-0 text-white/70 hover:text-white text-sm font-bold px-3 py-1 bg-slate-800/80 rounded-lg"
+        >
+          ✕ Fermer
+        </button>
+        <div className="bg-white rounded-2xl overflow-hidden shadow-2xl">
+          <img src={src} alt={name} className="max-w-[88vw] max-h-[78dvh] object-contain" />
+        </div>
+        <p className="mt-2 text-slate-400 text-sm font-medium">{name}</p>
+      </div>
+    </div>
+  )
+}
+
+// ─── PostureMiniature ─────────────────────────────────────────────────────────
+function PostureMiniature({ exercise }: { exercise: Pick<Exercise, 'imageGuide' | 'imageUrl' | 'name'> }) {
+  const [err, setErr] = useState(false)
+  const [lightbox, setLightbox] = useState(false)
+  const src = exercise.imageGuide ?? exercise.imageUrl
+  if (!src || err) return (
+    <div className="flex-shrink-0 rounded-xl border border-slate-600/50 bg-slate-800/70 flex flex-col items-center justify-center gap-1"
+      style={{ width: 'clamp(64px,7.5vw,88px)', height: 'clamp(50px,6vw,70px)', minWidth: 64 }}>
+      <ImageOff size={13} className="text-slate-600" />
+      <span className="text-slate-600 text-[8px] text-center leading-tight px-1">Image manquante</span>
+    </div>
+  )
+  return (
+    <>
+      <button
+        onClick={() => setLightbox(true)}
+        className="flex-shrink-0 rounded-xl border-2 border-slate-500/50 overflow-hidden bg-white shadow-sm active:scale-95 transition-transform cursor-zoom-in"
+        style={{ width: 'clamp(64px,7.5vw,88px)', height: 'clamp(50px,6vw,70px)', minWidth: 64 }}
+        title="Voir en grand"
+      >
+        <img src={src} alt={`Posture ${exercise.name}`} onError={() => setErr(true)}
+          className="w-full h-full object-contain" />
+      </button>
+      {lightbox && <PostureLightbox src={src} name={exercise.name} onClose={() => setLightbox(false)} />}
+    </>
   )
 }
 
@@ -95,6 +167,8 @@ function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onL
   const [weight, setWeight] = useState(logged?.weightKg?.toString() ?? effectiveWeight?.toString() ?? '')
   const [duration, setDuration] = useState(logged?.durationSeconds?.toString() ?? (effectiveSet.targetDuration ? String(effectiveSet.targetDuration) : ''))
   const [distance, setDistance] = useState(logged?.distanceMeters?.toString() ?? '')
+  const [strokes, setStrokes] = useState(logged?.strokesCount?.toString() ?? '')
+  const [intensity, setIntensity] = useState(logged?.intensity?.toString() ?? '')
   const showWeight = exercise.hasWeight || exercise.category === 'weight'
 
   const handleQuickValidate = () => {
@@ -138,11 +212,24 @@ function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onL
           </label>
         )}
         {isCardio && (
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400 font-medium">Distance (m)</span>
-            <input type="number" inputMode="numeric" value={distance} onChange={e => setDistance(e.target.value)}
-              className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="ex. 150" />
-          </label>
+          <>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400 font-medium">Distance (m)</span>
+              <input type="number" inputMode="numeric" value={distance} onChange={e => setDistance(e.target.value)}
+                className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="ex. 150" />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400 font-medium">Coups / mouvements</span>
+              <input type="number" inputMode="numeric" value={strokes} onChange={e => setStrokes(e.target.value)}
+                className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="0" />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-slate-400 font-medium">Intensité (1-10)</span>
+              <input type="number" inputMode="numeric" value={intensity} onChange={e => setIntensity(e.target.value)}
+                min={1} max={10}
+                className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="5" />
+            </label>
+          </>
         )}
       </div>
       <button onClick={() => {
@@ -152,6 +239,8 @@ function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onL
           weightKg: weight ? parseFloat(weight) : undefined,
           durationSeconds: duration ? parseInt(duration) : undefined,
           distanceMeters: distance ? parseInt(distance) : undefined,
+          strokesCount: strokes ? parseInt(strokes) : undefined,
+          intensity: intensity ? Math.min(10, Math.max(1, parseInt(intensity))) : undefined,
         })
         setEditing(false)
       }}
@@ -170,12 +259,16 @@ function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onL
         {logged?.weightKg != null && ` ${logged.weightKg}kg`}
         {logged?.durationSeconds != null && ` ${logged.durationSeconds}s`}
         {logged?.distanceMeters != null && ` ${logged.distanceMeters}m`}
+        {logged?.strokesCount != null && ` ${logged.strokesCount}coups`}
+        {logged?.intensity != null && ` i${logged.intensity}`}
       </span>
       <button onClick={() => {
         setReps(logged?.reps?.toString() ?? '')
         setWeight(logged?.weightKg?.toString() ?? effectiveWeight?.toString() ?? '')
         setDuration(logged?.durationSeconds?.toString() ?? '')
         setDistance(logged?.distanceMeters?.toString() ?? '')
+        setStrokes(logged?.strokesCount?.toString() ?? '')
+        setIntensity(logged?.intensity?.toString() ?? '')
         setEditing(true)
       }}
         className="ml-auto p-1 text-slate-700 active:text-slate-400"><Pencil size={11} /></button>
@@ -216,6 +309,8 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
     targetDuration: override?.targetDuration ?? baseSet?.targetDuration,
     restSeconds: override?.restSeconds ?? baseSet?.restSeconds ?? 0,
     weightKg: override?.weightKg,
+    intensity: override?.intensity ?? (isCardio ? 5 : undefined),
+    targetStrokes: override?.targetStrokes ?? 0,
   }
   const effectiveWeight = eff.weightKg ?? lastWeight
   const effectiveSets: ExerciseSet[] = Array.from({ length: eff.numSets! }, () => ({
@@ -250,43 +345,47 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
 
   return (
     <div className={`rounded-xl border overflow-hidden transition-colors ${borderClass} ${className}`}>
-      {/* Cardio : layout horizontal compact sur PC */}
+      {/* Cardio : layout sur PC — image + nom + params + actions */}
       {isCardio && (
-        <div className="hidden lg:flex items-center gap-3 px-3 py-2.5">
-          <ExerciseImage exercise={exercise} size="sm" className="flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-white font-bold text-base leading-tight">{exercise.name}</p>
-            {exercise.notes && <p className="text-slate-500 text-xs mt-0.5">{exercise.notes}</p>}
-          </div>
-          <ParamStepper label="Durée" display={`${eff.targetDuration ?? 30}s`}
-            onDec={() => update({ targetDuration: Math.max(5, (eff.targetDuration ?? 30) - 15) })}
-            onInc={() => update({ targetDuration: (eff.targetDuration ?? 30) + 15 })} />
-          <ParamStepper label="Répét." display={String(eff.numSets)}
-            onDec={() => update({ numSets: Math.max(1, eff.numSets! - 1) })}
-            onInc={() => update({ numSets: eff.numSets! + 1 })} />
-          <span className={`text-sm font-bold tabular-nums ${allDone ? 'text-green-400' : 'text-slate-500'}`}>{completedCount}/{total}</span>
-          {!allDone ? (
-            <button onClick={handleValidateExercise}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm active:scale-95 transition-transform">
-              <CheckCircle2 size={14} /> Valider
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-green-400 text-sm font-medium">✓ OK</span>
-              <button onClick={handleResetAll} className="w-8 h-8 rounded-lg bg-slate-700/40 flex items-center justify-center text-slate-500">
-                <RotateCcw size={12} />
-              </button>
+        <div className="hidden lg:block px-3 py-2.5">
+          <div className="flex items-center gap-3">
+            <ExerciseImage exercise={exercise} size="sm" className="flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold text-base leading-tight">{exercise.name}</p>
+              {exercise.notes && <p className="text-slate-500 text-xs mt-0.5">{exercise.notes}</p>}
             </div>
-          )}
+            <span className={`text-sm font-bold tabular-nums ${allDone ? 'text-green-400' : 'text-slate-500'}`}>{completedCount}/{total}</span>
+            {!allDone ? (
+              <button onClick={handleValidateExercise}
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm active:scale-95 transition-transform">
+                <CheckCircle2 size={14} /> Valider
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-green-400 text-sm font-medium">✓ OK</span>
+                <button onClick={handleResetAll} className="w-8 h-8 rounded-lg bg-slate-700/40 flex items-center justify-center text-slate-500">
+                  <RotateCcw size={12} />
+                </button>
+              </div>
+            )}
+          </div>
+          {/* Params row */}
+          <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2 pt-2 border-t border-slate-700/20">
+            <NumericStepper label="Séries" value={eff.numSets!} onChange={v => update({ numSets: v })} min={1} step={1} />
+            <NumericStepper label="Durée" value={eff.targetDuration ?? 30} onChange={v => update({ targetDuration: v })} min={5} step={15} unit="s" />
+            <NumericStepper label="Intensité" value={eff.intensity ?? 5} onChange={v => update({ intensity: v })} min={1} max={10} step={1} />
+            <NumericStepper label="Coups" value={eff.targetStrokes ?? 0} onChange={v => update({ targetStrokes: v })} min={0} step={5} />
+            <NumericStepper label="Repos" value={eff.restSeconds ?? 0} onChange={v => update({ restSeconds: v })} min={0} step={15} unit="s" />
+          </div>
         </div>
       )}
 
       {/* Mobile header (tous) + PC header pour non-cardio */}
-      <div className={`flex items-center gap-2 px-3 py-2.5 ${isCardio ? 'lg:hidden' : ''}`}>
-        <ExerciseImage exercise={exercise} size="sm" />
+      <div className={`flex items-center gap-2.5 px-3 py-2.5 ${isCardio ? 'lg:hidden' : ''}`}>
+        <PostureMiniature exercise={exercise} />
         <button onClick={() => setOpen(o => !o)} className="flex-1 min-w-0 text-left">
-          <p className="text-white font-bold text-base leading-tight">{exercise.name}</p>
-          {exercise.notes && <p className="text-slate-500 text-xs mt-0.5 leading-tight">{exercise.notes}</p>}
+          <p className="text-white font-bold text-lg leading-tight">{exercise.name}</p>
+          {exercise.notes && <p className="text-slate-400 text-sm mt-0.5 leading-tight">{exercise.notes}</p>}
         </button>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <span className={`text-sm font-bold tabular-nums ${allDone ? 'text-green-400' : 'text-slate-400'}`}>{completedCount}/{total}</span>
@@ -302,27 +401,25 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
         <div className={isCardio ? 'lg:hidden' : ''}>
           {/* Params */}
           <div className="px-3 pt-2 pb-2.5 border-t border-slate-700/25 flex flex-wrap justify-around gap-x-3 gap-y-2">
-            <ParamStepper label="Séries" display={String(eff.numSets)}
-              onDec={() => update({ numSets: Math.max(1, eff.numSets! - 1) })}
-              onInc={() => update({ numSets: eff.numSets! + 1 })} />
+            <NumericStepper label="Séries" value={eff.numSets!} onChange={v => update({ numSets: v })} min={1} step={1} />
             {exercise.type === 'reps' && (
-              <ParamStepper label="Reps" display={eff.targetReps === 0 ? 'Max' : String(eff.targetReps ?? '—')}
-                onDec={() => update({ targetReps: Math.max(0, (eff.targetReps ?? 0) - 1) })}
-                onInc={() => update({ targetReps: (eff.targetReps ?? 0) + 1 })} />
+              <NumericStepper label="Reps" value={eff.targetReps ?? 0} onChange={v => update({ targetReps: v })} min={0} step={1}
+                displayValue={eff.targetReps === 0 ? 'Max' : undefined} />
             )}
             {(exercise.type === 'duration' || isCardio) && (
-              <ParamStepper label="Durée" display={`${eff.targetDuration ?? 30}s`}
-                onDec={() => update({ targetDuration: Math.max(5, (eff.targetDuration ?? 30) - 5) })}
-                onInc={() => update({ targetDuration: (eff.targetDuration ?? 30) + 5 })} />
+              <NumericStepper label="Durée" value={eff.targetDuration ?? 30} onChange={v => update({ targetDuration: v })} min={5} step={5} unit="s" />
+            )}
+            {isCardio && (
+              <>
+                <NumericStepper label="Intensité" value={eff.intensity ?? 5} onChange={v => update({ intensity: v })} min={1} max={10} step={1} />
+                <NumericStepper label="Coups" value={eff.targetStrokes ?? 0} onChange={v => update({ targetStrokes: v })} min={0} step={5} />
+              </>
             )}
             {showWeight && (
-              <ParamStepper label="Charge" display={effectiveWeight ? `${effectiveWeight}kg` : '—'}
-                onDec={() => update({ weightKg: Math.max(0, Math.round(((effectiveWeight ?? 0) - 2.5) * 10) / 10) })}
-                onInc={() => update({ weightKg: Math.round(((effectiveWeight ?? 0) + 2.5) * 10) / 10 })} />
+              <NumericStepper label="Charge" value={effectiveWeight ?? 0} onChange={v => update({ weightKg: v })} min={0} step={2}
+                displayValue={!effectiveWeight ? '—' : undefined} unit={effectiveWeight ? 'kg' : ''} />
             )}
-            <ParamStepper label="Repos" display={`${eff.restSeconds ?? 0}s`}
-              onDec={() => update({ restSeconds: Math.max(0, (eff.restSeconds ?? 0) - 15) })}
-              onInc={() => update({ restSeconds: (eff.restSeconds ?? 0) + 15 })} />
+            <NumericStepper label="Repos" value={eff.restSeconds ?? 0} onChange={v => update({ restSeconds: v })} min={0} step={15} unit="s" />
           </div>
 
           {/* Poids rapides */}
@@ -403,7 +500,8 @@ export function ActiveSession() {
   const navigate = useNavigate()
   const { state, dispatch } = useStore()
   const { start: startTimer } = useTimer()
-  const session = sessionId ? SESSION_BY_ID[sessionId] : null
+  const sessionById = useMemo(() => buildSessionById(state.customProgram), [state.customProgram])
+  const session = sessionId ? sessionById[sessionId] : null
 
   const [showFinish, setShowFinish] = useState(false)
   const [feeling, setFeeling] = useState<Feeling>('normal')
@@ -459,7 +557,7 @@ export function ActiveSession() {
   const handleCancel = () => { dispatch({ type: 'CANCEL_SESSION' }); navigate('/') }
 
   return (
-    <div className="flex flex-col pb-[80px] lg:pb-8 max-w-[1600px] mx-auto w-full px-0 lg:px-6">
+    <div className="flex flex-col pb-[80px] lg:pb-8 max-w-[1600px] mx-auto w-full px-0 lg:px-8">
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-slate-950/97 backdrop-blur border-b border-slate-700/50 px-3 pt-2.5 pb-2">
         <div className="flex items-center gap-2 mb-1.5">
@@ -497,7 +595,7 @@ export function ActiveSession() {
         })}
       </div>
 
-      {/* Bouton Terminer in-flow — grand, visible, juste sous les exercices */}
+      {/* Bouton Terminer in-flow */}
       <div className="px-3 pt-4 pb-2">
         <button onClick={() => setShowFinish(true)}
           className="w-full py-4 rounded-2xl bg-green-600 text-white font-bold text-base active:scale-95 transition-transform shadow-lg shadow-green-900/30 flex items-center justify-center gap-2">
@@ -548,12 +646,12 @@ export function ActiveSession() {
             </div>
             <div className="px-6 py-4 border-t border-slate-700/50 flex gap-3 flex-shrink-0">
               <button onClick={() => setShowFinish(false)}
-                className="flex-1 py-3.5 rounded-xl bg-slate-700 text-slate-300 font-semibold active:scale-95 transition-transform">
-                Retour
+                className="flex-1 py-3 rounded-xl bg-slate-700 text-slate-300 font-semibold text-sm">
+                Continuer
               </button>
               <button onClick={() => handleFinish(false)}
-                className="flex-1 py-3.5 rounded-xl bg-green-600 text-white font-bold active:scale-95 transition-transform">
-                Valider ✓
+                className="flex-1 py-3 rounded-xl bg-green-600 text-white font-bold text-sm active:scale-95 transition-transform">
+                Terminer ✓
               </button>
             </div>
           </div>

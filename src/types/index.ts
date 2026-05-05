@@ -49,7 +49,9 @@ export interface ExerciseSessionOverride {
   targetReps?: number
   targetDuration?: number
   restSeconds?: number
-  weightKg?: number  // suggested weight for this exercise this session
+  weightKg?: number
+  intensity?: number      // 1-10 effort level (cardio)
+  targetStrokes?: number  // target stroke/movement count per interval (cardio)
 }
 
 // Logged data
@@ -61,6 +63,8 @@ export interface LoggedSet {
   weightKg?: number
   durationSeconds?: number
   distanceMeters?: number
+  strokesCount?: number  // actual movements/strokes (cardio)
+  intensity?: number     // effort level 1-10 (cardio)
   comment?: string
   timestamp: string
 }
@@ -86,4 +90,5 @@ export interface AppState {
   activeSessionLog: SessionLog | null
   theme: AppTheme
   sidebarCompact?: boolean
+  customProgram?: WorkoutSession[]  // overrides default PROGRAM when set
 }

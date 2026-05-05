@@ -27,10 +27,40 @@ npm run build
 npm run preview
 ```
 
-## Installation PWA
+## Installation PWA sur téléphone
+
+### Servir depuis le réseau local
+```bash
+npm run dev -- --host
+# puis ouvrir http://192.168.x.x:5173 sur le téléphone (même Wi-Fi)
+```
 
 - **iOS (Safari)** : Partager → "Sur l'écran d'accueil"
 - **Android (Chrome)** : Menu ⋮ → "Ajouter à l'écran d'accueil"
+
+---
+
+## Synchronisation multi-appareils (Google Drive)
+
+Pas de backend. Synchro manuelle via export/import JSON.
+
+**Dossier Drive partagé :**  
+https://drive.google.com/drive/folders/1uxLqfrhpZkEqY7aFvFYfkeSLjSxP3ZLZ
+
+### PC → Téléphone
+1. Réglages → **Exporter JSON** → fichier `sport-tracker-backup.json`
+2. Déposer dans le dossier Google Drive
+3. Sur le téléphone : télécharger depuis Drive
+4. Réglages → **Importer** → sélectionner le JSON
+
+### Téléphone → PC
+1. Réglages → **Exporter JSON**
+2. Partager vers l'app Google Drive mobile
+3. Sur le PC : télécharger depuis Drive
+4. Réglages → **Importer** → sélectionner le JSON
+
+> ⚠️ Ne pas héberger l'app via Google Drive (Drive ne sert pas de serveur web).  
+> Nommer les exports avec la date : `sport-tracker-2026-05-05.json`
 
 ---
 

@@ -1,4 +1,5 @@
 import type { WorkoutSession } from '../types'
+import { VACATION_SESSIONS } from './vacances'
 
 export const PROGRAM: WorkoutSession[] = [
   {
@@ -121,12 +122,12 @@ export const PROGRAM: WorkoutSession[] = [
       },
       {
         id: 's2_squats',
-        name: 'Squats',
+        name: 'Squat goblet',
         type: 'reps',
-        category: 'bodyweight',
-        thumbnail: '🦵',
-        description: 'Pieds écartés largeur épaules, descendre les cuisses parallèles au sol, genoux dans l\'axe des pieds.',
-        hasWeight: false,
+        category: 'weight',
+        thumbnail: '🏋️',
+        description: 'Tenir un haltère contre la poitrine, descendre en squat profond dos droit, pousser sur les talons.',
+        hasWeight: true,
         sets: [
           { targetReps: 12, restSeconds: 45 },
           { targetReps: 12, restSeconds: 45 },
@@ -160,7 +161,7 @@ export const PROGRAM: WorkoutSession[] = [
         category: 'bodyweight',
         thumbnail: '🤸',
         description: 'En position penchée en avant, élever les bras en formant successivement I, Y puis T. Renforce les trapèzes et rhomboïdes.',
-        hasWeight: false,
+        hasWeight: true,
         sets: [
           { targetReps: 8, restSeconds: 45 },
           { targetReps: 8, restSeconds: 45 },
@@ -372,8 +373,13 @@ export const PROGRAM: WorkoutSession[] = [
 ]
 
 export const SESSION_BY_ID: Record<string, WorkoutSession> = Object.fromEntries(
-  PROGRAM.map(s => [s.id, s])
+  [...PROGRAM, ...VACATION_SESSIONS].map(s => [s.id, s])
 )
+
+// Dynamic lookup respecting custom program edits
+export function buildSessionById(customProgram?: WorkoutSession[]): Record<string, WorkoutSession> {
+  return Object.fromEntries([...(customProgram ?? PROGRAM), ...VACATION_SESSIONS].map(s => [s.id, s]))
+}
 
 export const MOTIVATIONAL_QUOTES = [
   'Même 10 minutes = séance validée.',
@@ -383,4 +389,18 @@ export const MOTIVATIONAL_QUOTES = [
   'Chaque série compte.',
   'La constance fait les champions.',
   'Avance à ton rythme.',
+  'Un pas à la fois, une série à la fois.',
+  'Le meilleur entraînement : celui que tu fais vraiment.',
+  'Force ne se mesure pas en kilos, mais en régularité.',
+  "Pas d'excuse, juste des séries.",
+  "Tu es plus fort qu'hier.",
+  "Le corps s'adapte. Continue.",
+  'Effort court, bénéfice long.',
+  'Construis ton moteur, une séance à la fois.',
+  "Le doute disparaît après la première série.",
+  "Sueur aujourd'hui, résultat demain.",
+  'Chaque rep est un investissement.',
+  'Discipline > motivation.',
+  "Progresser lentement, c'est progresser.",
+  'Séance imparfaite > séance non faite.',
 ]

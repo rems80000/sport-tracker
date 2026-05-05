@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { exportJSON, importJSON } from '../utils/storage'
-import { Download, Upload, Trash2, Timer, Info } from 'lucide-react'
+import { Download, Upload, Trash2, Timer, Info, Cloud, ExternalLink } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { AppTheme } from '../types'
+
+const GDRIVE_FOLDER_URL = 'https://drive.google.com/drive/folders/1uxLqfrhpZkEqY7aFvFYfkeSLjSxP3ZLZ'
 
 const THEMES: { value: AppTheme; label: string; sub: string; preview: string }[] = [
   {
@@ -174,6 +176,42 @@ export function Settings() {
               <div className={`w-5 h-5 rounded-full bg-white m-0.5 transition-transform ${state.sidebarCompact ? 'translate-x-5' : 'translate-x-0'}`} />
             </div>
           </button>
+        </div>
+      </section>
+
+      {/* Sauvegarde cloud */}
+      <section>
+        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Cloud size={12} /> Sauvegarde multi-appareils
+        </h2>
+        <div className="bg-slate-800/50 border border-slate-700/40 rounded-2xl overflow-hidden divide-y divide-slate-700/40">
+          <div className="px-4 py-3">
+            <p className="text-slate-300 text-sm font-semibold mb-1">Synchronisation via Google Drive</p>
+            <p className="text-slate-500 text-xs leading-relaxed">
+              Exportez le JSON → déposez-le dans le dossier Drive partagé → importez-le sur l'autre appareil.
+            </p>
+          </div>
+          <div className="flex gap-2 px-4 py-3">
+            <button
+              onClick={handleExport}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-700/20 border border-green-600/30 text-green-300 text-xs font-bold active:scale-95 transition-transform"
+            >
+              <Download size={14} /> Exporter JSON
+            </button>
+            <a
+              href={GDRIVE_FOLDER_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-700/20 border border-blue-600/30 text-blue-300 text-xs font-bold active:scale-95 transition-transform"
+            >
+              <ExternalLink size={14} /> Ouvrir Drive
+            </a>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-slate-600 text-[10px] leading-relaxed">
+              1. Exporter · 2. Déposer dans Drive · 3. Sur l'autre appareil : Importer depuis Drive
+            </p>
+          </div>
         </div>
       </section>
 
