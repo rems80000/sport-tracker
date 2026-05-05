@@ -1,18 +1,42 @@
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
-import { PROGRAM, MOTIVATIONAL_QUOTES } from '../data/program'
+import { PROGRAM, MOTIVATIONAL_QUOTES, SESSION_BY_ID } from '../data/program'
 import { SessionCard } from '../components/SessionCard'
-import type { SessionStatus } from '../types'
+import type { SessionStatus, SessionLog } from '../types'
 import { getStartOfWeek } from '../utils/storage'
 import { Flame, Zap, PlayCircle, Radio } from 'lucide-react'
 import { useMemo } from 'react'
 
-// ── Configurer l'URL de la radio ici ──────────────────────────────────────────
 const SPOON_RADIO_URL = 'https://www.spoon.radio'
-
 const DAY_ORDER = ['monday', 'tuesday', 'thursday', 'friday']
+const BODYWEIGHT_KG = 70
 
-function getWeekSessions(sessions: ReturnType<typeof useStore>['state']['sessions']) {
+// ─── Tonnage ──────────────────────────────────────────────────────────────────
+
+function calcSessionTonnageKg(log: SessionLog): number {
+  let total = 0
+  for (const set of log.sets) {
+    if (!set.completed || !set.reps || set.reps <= 0) continue
+    const session = SESSION_BY_ID[log.sessionId]
+    const ex = session?.exercises.find(e => e.id === set.exerciseId)
+    if (!ex) continue
+    const isBodyweight = ex.category === 'bodyweight' && !ex.hasWeight
+    const isWeighted = ex.hasWeight || ex.category === 'weight'
+    const w = set.weightKg ?? (isWeighted ? 0 : isBodyweight ? BODYWEIGHT_KG : 0)
+    total += w * set.reps
+  }
+  return Math.round(total)
+}
+
+function fmtKg(kg: number): string {
+  if (kg <= 0) return '—'
+  if (kg >= 1000) return `${(kg / 1000).toFixed(1).replace('.', ',')} t`
+  return `${kg} kg`
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getWeekSessions(sessions: SessionLog[]) {
   const now = new Date()
   const weekStart = getStartOfWeek(now)
   const weekEnd = new Date(weekStart)
@@ -25,13 +49,15 @@ function getWeekSessions(sessions: ReturnType<typeof useStore>['state']['session
 
 function getSessionStatus(
   sessionId: string,
-  weekLogs: ReturnType<typeof useStore>['state']['sessions'],
-  activeLog: ReturnType<typeof useStore>['state']['activeSessionLog']
+  weekLogs: SessionLog[],
+  activeLog: SessionLog | null
 ): SessionStatus {
   if (activeLog?.sessionId === sessionId) return 'in_progress'
   const log = weekLogs.find(s => s.sessionId === sessionId)
   return log?.status ?? 'todo'
 }
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export function Dashboard() {
   const { state } = useStore()
@@ -44,7 +70,8 @@ export function Dashboard() {
     return MOTIVATIONAL_QUOTES[idx]
   }, [])
 
-  const completedThisWeek = weekLogs.filter(s => s.status === 'done' || s.status === 'done_short').length
+  const doneLogs = weekLogs.filter(s => s.status === 'done' || s.status === 'done_short')
+  const completedThisWeek = doneLogs.length
   const totalScheduled = 3
 
   const streak = useMemo(() => {
@@ -61,6 +88,56 @@ export function Dashboard() {
     return count
   }, [state.sessions])
 
+  // ── Tonnage ────────────────────────────────────────────────────────────────
+
+  const weekTonnageKg = useMemo(
+    () => doneLogs.reduce((acc, s) => acc + calcSessionTonnageKg(s), 0),
+    [doneLogs]
+  )
+
+  const monthTonnageKg = useMemo(() => {
+    const m = today.getMonth(), y = today.getFullYear()
+    return state.sessions
+      .filter(s => {
+        const d = new Date(s.date)
+        return d.getFullYear() === y && d.getMonth() === m &&
+          (s.status === 'done' || s.status === 'done_short')
+      })
+      .reduce((acc, s) => acc + calcSessionTonnageKg(s), 0)
+  }, [state.sessions])
+
+  const weekDayTonnage = useMemo(() =>
+    DAY_ORDER.map(day => {
+      const session = PROGRAM.find(s => s.day === day)!
+      const log = weekLogs.find(s =>
+        s.sessionId === session.id && (s.status === 'done' || s.status === 'done_short')
+      )
+      const label: Record<string, string> = { monday: 'Lun', tuesday: 'Mar', thursday: 'Jeu', friday: 'Ven' }
+      return { day: label[day] ?? day, kg: log ? calcSessionTonnageKg(log) : 0 }
+    }),
+    [weekLogs]
+  )
+
+  const monthlyHistory = useMemo(() =>
+    Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(today.getFullYear(), today.getMonth() - (11 - i), 1)
+      const y = d.getFullYear(), m = d.getMonth()
+      const kg = state.sessions
+        .filter(s => {
+          const sd = new Date(s.date)
+          return sd.getFullYear() === y && sd.getMonth() === m &&
+            (s.status === 'done' || s.status === 'done_short')
+        })
+        .reduce((acc, s) => acc + calcSessionTonnageKg(s), 0)
+      return {
+        label: d.toLocaleDateString('fr-FR', { month: 'short' }),
+        kg: Math.round(kg),
+        isCurrent: i === 11,
+      }
+    }),
+    [state.sessions]
+  )
+
   const MONTHS = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc']
   const DAYS = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam']
   const handleStart = (sessionId: string) => navigate(`/seance/${sessionId}`)
@@ -72,11 +149,12 @@ export function Dashboard() {
 
   const progressPct = totalScheduled > 0 ? (completedThisWeek / totalScheduled) * 100 : 0
   const totalDone = state.sessions.filter(s => s.status === 'done' || s.status === 'done_short').length
+  const hasTonnage = weekTonnageKg > 0 || monthTonnageKg > 0
 
   return (
-    <div className="pb-[160px] lg:pb-[130px] pt-6 px-5 max-w-5xl mx-auto w-full">
+    <div className="pb-[80px] lg:pb-8 pt-6 px-5 max-w-[1400px] mx-auto w-full">
 
-      {/* ── Header rock ───────────────────────────────────────────────────── */}
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between mb-5 gap-3">
         <div>
           <p className="text-slate-600 text-xs uppercase tracking-[0.2em] font-bold">
@@ -100,7 +178,6 @@ export function Dashboard() {
               <span className="text-orange-400 font-black text-lg leading-none">{streak}</span>
             </div>
           )}
-          {/* Spoon Radio */}
           <a href={SPOON_RADIO_URL} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 bg-rose-600/15 border border-rose-500/30 rounded-xl px-3 py-1.5 active:scale-95 transition-transform">
             <Radio size={13} className="text-rose-400" />
@@ -109,7 +186,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* ── Session en cours ──────────────────────────────────────────────── */}
+      {/* ── Session en cours ────────────────────────────────────────────────── */}
       {state.activeSessionLog && (
         <div className="mb-3 bg-orange-500/10 border border-orange-500/40 rounded-2xl p-3 flex items-center gap-3">
           <Zap size={18} className="text-orange-400 flex-shrink-0" />
@@ -126,10 +203,10 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* ── Layout 2 colonnes PC ──────────────────────────────────────────── */}
-      <div className="lg:grid lg:grid-cols-[1fr_270px] lg:gap-6 flex flex-col gap-4">
+      {/* ── Layout 2 colonnes PC ────────────────────────────────────────────── */}
+      <div className="lg:grid lg:grid-cols-[1fr_290px] lg:gap-6 flex flex-col gap-4">
 
-        {/* Colonne gauche : sessions ───────────────────────────────────── */}
+        {/* Colonne gauche : sessions */}
         <div className="flex flex-col gap-4">
 
           {/* Aujourd'hui */}
@@ -172,7 +249,7 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Colonne droite : stats ──────────────────────────────────────── */}
+        {/* Colonne droite : stats */}
         <div className="flex flex-col gap-4">
 
           {/* Progression semaine */}
@@ -206,7 +283,37 @@ export function Dashboard() {
             </div>
           )}
 
-          {/* Spoon Radio (version grande sur PC) */}
+          {/* Tonnage semaine */}
+          {weekTonnageKg > 0 && (
+            <div className="bg-slate-900/80 border border-amber-500/20 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <Zap size={11} className="text-amber-400" /> Tonnage sem.
+                </span>
+                <span className="font-black text-amber-400 text-xl">{fmtKg(weekTonnageKg)}</span>
+              </div>
+              <div className="grid grid-cols-4 gap-1">
+                {weekDayTonnage.map(({ day, kg }) => (
+                  <div key={day} className="flex flex-col items-center gap-0.5 bg-slate-800/60 rounded-lg py-1.5">
+                    <span className="text-slate-600 text-[9px] font-bold uppercase">{day}</span>
+                    <span className="text-amber-300/80 text-[10px] font-semibold">{fmtKg(kg)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tonnage mois */}
+          {monthTonnageKg > 0 && (
+            <div className="flex items-center justify-between bg-slate-800/40 border border-amber-500/15 rounded-xl px-4 py-3">
+              <span className="text-slate-500 text-sm flex items-center gap-1.5">
+                <Zap size={11} className="text-amber-400" /> Ce mois
+              </span>
+              <span className="font-black text-amber-400 text-xl">{fmtKg(monthTonnageKg)}</span>
+            </div>
+          )}
+
+          {/* Spoon Radio PC */}
           <a href={SPOON_RADIO_URL} target="_blank" rel="noopener noreferrer"
             className="hidden lg:flex items-center gap-3 bg-rose-950/40 border border-rose-700/30 rounded-2xl px-4 py-3 active:scale-95 transition-transform hover:border-rose-600/50">
             <div className="w-9 h-9 rounded-xl bg-rose-600/20 flex items-center justify-center flex-shrink-0">
@@ -219,6 +326,32 @@ export function Dashboard() {
           </a>
         </div>
       </div>
+
+      {/* ── Historique 12 mois ──────────────────────────────────────────────── */}
+      {hasTonnage && monthlyHistory.some(m => m.kg > 0) && (
+        <div className="mt-4 bg-slate-900/60 border border-slate-700/40 rounded-2xl p-4">
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
+            <Zap size={11} className="text-amber-400" /> Tonnage — 12 derniers mois
+          </p>
+          <div className="grid grid-cols-6 lg:grid-cols-12 gap-1.5">
+            {monthlyHistory.map(({ label, kg, isCurrent }, i) => (
+              <div key={i}
+                className={`flex flex-col items-center gap-0.5 rounded-xl py-2 px-1 ${
+                  isCurrent
+                    ? 'bg-amber-500/15 border border-amber-500/25'
+                    : 'bg-slate-800/40'
+                }`}>
+                <span className={`text-[9px] font-bold uppercase ${isCurrent ? 'text-amber-400' : 'text-slate-600'}`}>
+                  {label}
+                </span>
+                <span className={`text-[10px] font-semibold ${kg > 0 ? 'text-amber-300/80' : 'text-slate-700'}`}>
+                  {fmtKg(kg)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, Dumbbell, History, TrendingUp, Settings } from 'lucide-react'
+import { LayoutDashboard, BookOpen, Dumbbell, History, TrendingUp, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useStore } from '../store/useStore'
 
 const NAV_ITEMS = [
@@ -12,14 +12,14 @@ const NAV_ITEMS = [
 ]
 
 export function Sidebar() {
-  const { state } = useStore()
+  const { state, dispatch } = useStore()
   const compact = state.sidebarCompact ?? false
 
   return (
     <aside
       className={`hidden lg:flex flex-col bg-slate-900/95 border-r border-slate-700/40 flex-shrink-0 transition-all duration-200 ${compact ? 'w-[64px]' : 'w-[200px]'}`}
     >
-      <nav className="flex flex-col gap-1 p-2 pt-4">
+      <nav className="flex flex-col gap-1 p-2 pt-4 flex-1">
         {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
@@ -39,6 +39,15 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Bouton réduire/agrandir */}
+      <button
+        onClick={() => dispatch({ type: 'SET_SIDEBAR_COMPACT', payload: !compact })}
+        className={`mx-2 mb-4 py-2 px-3 rounded-xl text-slate-600 hover:text-slate-300 hover:bg-slate-800/60 transition-colors flex items-center gap-2 ${compact ? 'justify-center' : ''}`}
+        title={compact ? 'Agrandir le menu' : 'Réduire le menu'}
+      >
+        {compact ? <ChevronRight size={16} /> : <><ChevronLeft size={14} /><span className="text-xs font-medium">Réduire</span></>}
+      </button>
     </aside>
   )
 }

@@ -104,7 +104,7 @@ export function History() {
   }
 
   return (
-    <div className="flex flex-col gap-4 pb-[160px] pt-4 px-4 max-w-4xl mx-auto w-full">
+    <div className="flex flex-col gap-4 pb-[160px] pt-4 px-4 max-w-[1400px] mx-auto w-full">
       <h1 className="text-2xl font-bold text-white">Historique</h1>
 
       {weeks.map(week => {

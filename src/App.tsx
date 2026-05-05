@@ -69,15 +69,16 @@ function ClockBar() {
           {p(now.getHours())}:{p(now.getMinutes())}:{p(now.getSeconds())}
         </span>
 
-        {/* Bouton chronomètre — à droite */}
+        {/* Bouton chronomètre — à droite, centré verticalement */}
         <button
           onClick={() => setShowTimer(true)}
-          className="absolute right-2 lg:right-5 flex flex-col items-center justify-center w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-slate-800/60 border border-slate-700/40 active:scale-95 transition-transform relative"
+          className="absolute right-2 lg:right-5 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-slate-800/60 border border-slate-700/40 active:scale-95 transition-transform"
           title="Timer repos"
+          style={{ position: 'absolute' }}
         >
           <Timer size={18} className={timerIsActive ? 'text-indigo-400' : 'text-slate-500'} />
           {timerIsActive && (
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-indigo-500 border-2 border-black animate-pulse" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-indigo-500 border-2 border-black animate-pulse" style={{ position: 'absolute' }} />
           )}
         </button>
       </div>
