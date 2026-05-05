@@ -72,13 +72,22 @@ function ClockBar() {
         {/* Bouton chronomètre — à droite, centré verticalement */}
         <button
           onClick={() => setShowTimer(true)}
-          className="absolute right-2 lg:right-5 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-slate-800/60 border border-slate-700/40 active:scale-95 transition-transform"
+          className="absolute right-3 lg:right-6 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-14 h-14 lg:w-16 lg:h-16 rounded-2xl active:scale-95 transition-transform"
           title="Timer repos"
-          style={{ position: 'absolute' }}
+          style={{
+            position: 'absolute',
+            background: timerIsActive ? 'rgba(99,102,241,0.15)' : 'rgba(30,41,59,0.7)',
+            border: timerIsActive ? '1.5px solid rgba(99,102,241,0.5)' : '1.5px solid rgba(51,65,85,0.5)',
+          }}
         >
-          <Timer size={18} className={timerIsActive ? 'text-indigo-400' : 'text-slate-500'} />
+          <Timer size={24} className={timerIsActive ? 'text-indigo-400' : 'text-slate-400'} />
           {timerIsActive && (
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-indigo-500 border-2 border-black animate-pulse" style={{ position: 'absolute' }} />
+            <span className="text-indigo-300 font-mono font-bold tabular-nums" style={{ fontSize: '9px', position: 'relative' }}>
+              {finished ? 'OK' : `${remaining}s`}
+            </span>
+          )}
+          {timerIsActive && (
+            <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-indigo-500 border-2 border-black animate-pulse" style={{ position: 'absolute' }} />
           )}
         </button>
       </div>

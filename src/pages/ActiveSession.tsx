@@ -459,7 +459,7 @@ export function ActiveSession() {
   const handleCancel = () => { dispatch({ type: 'CANCEL_SESSION' }); navigate('/') }
 
   return (
-    <div className="flex flex-col pb-[80px] lg:pb-6 max-w-5xl mx-auto w-full">
+    <div className="flex flex-col pb-[80px] lg:pb-8 max-w-[1600px] mx-auto w-full px-0 lg:px-6">
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-slate-950/97 backdrop-blur border-b border-slate-700/50 px-3 pt-2.5 pb-2">
         <div className="flex items-center gap-2 mb-1.5">

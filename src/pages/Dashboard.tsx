@@ -152,7 +152,7 @@ export function Dashboard() {
   const hasTonnage = weekTonnageKg > 0 || monthTonnageKg > 0
 
   return (
-    <div className="pb-[80px] lg:pb-8 pt-6 px-5 max-w-[1400px] mx-auto w-full">
+    <div className="pb-[80px] lg:pb-8 pt-6 px-6 lg:px-8 max-w-[1400px] mx-auto w-full">
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between mb-5 gap-3">

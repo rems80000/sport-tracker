@@ -51,7 +51,7 @@ export function Program() {
   const [openSession, setOpenSession] = useState<string | null>(null)
 
   return (
-    <div className="flex flex-col gap-4 pb-[130px] pt-4 px-4 max-w-[1400px] mx-auto w-full">
+    <div className="flex flex-col gap-4 pb-[130px] pt-4 px-6 lg:px-8 max-w-[1400px] mx-auto w-full">
       <div>
         <h1 className="text-2xl font-bold text-white">Programme</h1>
         <p className="text-slate-400 text-sm mt-1">Lundi · Mardi · Jeudi · Vendredi optionnel</p>

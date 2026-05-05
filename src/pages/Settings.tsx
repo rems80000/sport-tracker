@@ -61,7 +61,7 @@ export function Settings() {
   const dataSize = Math.round(JSON.stringify(state).length / 1024)
 
   return (
-    <div className="flex flex-col gap-6 pb-[130px] pt-4 px-4 max-w-[1400px] mx-auto w-full">
+    <div className="flex flex-col gap-6 pb-[130px] pt-4 px-6 lg:px-8 max-w-[1400px] mx-auto w-full">
       <h1 className="text-2xl font-bold text-white">Réglages</h1>
 
       {/* Theme selector */}
