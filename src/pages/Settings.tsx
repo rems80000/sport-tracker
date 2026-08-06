@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
+import { useDriveSync } from '../store/driveSyncContext'
 import { exportJSON, importJSON } from '../utils/storage'
-import { Download, Upload, Trash2, Timer, Info, Cloud, ExternalLink } from 'lucide-react'
+import { Download, Upload, Trash2, Timer, Info, Cloud, ExternalLink, LogIn, LogOut, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { AppTheme } from '../types'
 
@@ -30,6 +31,7 @@ const THEMES: { value: AppTheme; label: string; sub: string; preview: string }[]
 
 export function Settings() {
   const { state, dispatch } = useStore()
+  const drive = useDriveSync()
   const fileRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [importSuccess, setImportSuccess] = useState(false)
@@ -61,6 +63,11 @@ export function Settings() {
 
   const sessionCount = state.sessions.length
   const dataSize = Math.round(JSON.stringify(state).length / 1024)
+  const driveBusy = drive.status === 'connecting' || drive.status === 'syncing'
+  const driveConnected = drive.status === 'synced' || drive.status === 'syncing'
+  const lastSyncLabel = drive.lastSyncedAt
+    ? new Date(drive.lastSyncedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+    : null
 
   return (
     <div className="flex flex-col gap-6 pb-[130px] pt-4 px-6 lg:px-8 max-w-[1400px] mx-auto w-full">
@@ -185,32 +192,83 @@ export function Settings() {
           <Cloud size={12} /> Sauvegarde multi-appareils
         </h2>
         <div className="bg-slate-800/50 border border-slate-700/40 rounded-2xl overflow-hidden divide-y divide-slate-700/40">
-          <div className="px-4 py-3">
-            <p className="text-slate-300 text-sm font-semibold mb-1">Synchronisation via Google Drive</p>
-            <p className="text-slate-500 text-xs leading-relaxed">
-              Exportez le JSON → déposez-le dans le dossier Drive partagé → importez-le sur l'autre appareil.
-            </p>
+          <div className="px-4 py-4 flex items-start gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              drive.status === 'synced' ? 'bg-green-500/15' : drive.status === 'error' ? 'bg-red-500/15' : 'bg-blue-500/15'
+            }`}>
+              {drive.status === 'synced'
+                ? <CheckCircle2 size={18} className="text-green-400" />
+                : drive.status === 'error'
+                  ? <AlertTriangle size={18} className="text-red-400" />
+                  : <Cloud size={18} className="text-blue-400" />}
+            </div>
+            <div className="min-w-0">
+              <p className="text-slate-200 text-sm font-bold">
+                {drive.status === 'synced' ? 'Données synchronisées' : drive.status === 'syncing' ? 'Synchronisation…' : 'Google Drive'}
+              </p>
+              <p className="text-slate-500 text-xs leading-relaxed mt-0.5">
+                {lastSyncLabel
+                  ? `Dernière sauvegarde : ${lastSyncLabel}`
+                  : 'Un fichier privé remy-life-hub.json réunira Sport, Présence et tes futurs projets.'}
+              </p>
+              {drive.error && <p className="text-red-400 text-xs mt-2 break-words">{drive.error}</p>}
+            </div>
           </div>
+
+          {!drive.configured && (
+            <div className="px-4 py-3 bg-amber-500/5">
+              <p className="text-amber-300 text-xs font-bold mb-1">Configuration administrateur nécessaire</p>
+              <p className="text-amber-200/60 text-[11px] leading-relaxed">
+                Ajoutez le Client ID Google dans la variable <code className="text-amber-200">VITE_GOOGLE_CLIENT_ID</code>, puis redéployez l'application.
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-2 px-4 py-3">
+            {!driveConnected ? (
+              <button
+                onClick={() => void drive.connect()}
+                disabled={driveBusy || !drive.configured}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold active:scale-95 transition-transform disabled:opacity-40 disabled:active:scale-100"
+              >
+                {driveBusy ? <RefreshCw size={14} className="animate-spin" /> : <LogIn size={14} />}
+                Connecter Google
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => void drive.syncNow()}
+                  disabled={driveBusy}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-700/20 border border-green-600/30 text-green-300 text-xs font-bold active:scale-95 transition-transform disabled:opacity-50"
+                >
+                  <RefreshCw size={14} className={driveBusy ? 'animate-spin' : ''} /> Synchroniser
+                </button>
+                <button
+                  onClick={drive.disconnect}
+                  className="px-3 flex items-center justify-center rounded-xl bg-slate-700/50 text-slate-400 active:scale-95 transition-transform"
+                  title="Déconnecter Google Drive"
+                >
+                  <LogOut size={15} />
+                </button>
+              </>
+            )}
+          </div>
+
           <div className="flex gap-2 px-4 py-3">
             <button
               onClick={handleExport}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-700/20 border border-green-600/30 text-green-300 text-xs font-bold active:scale-95 transition-transform"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-700/40 border border-slate-600/30 text-slate-300 text-xs font-bold active:scale-95 transition-transform"
             >
-              <Download size={14} /> Exporter JSON
+              <Download size={14} /> Export manuel
             </button>
             <a
               href={GDRIVE_FOLDER_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-700/20 border border-blue-600/30 text-blue-300 text-xs font-bold active:scale-95 transition-transform"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-700/40 border border-slate-600/30 text-slate-300 text-xs font-bold active:scale-95 transition-transform"
             >
               <ExternalLink size={14} /> Ouvrir Drive
             </a>
-          </div>
-          <div className="px-4 py-3">
-            <p className="text-slate-600 text-[10px] leading-relaxed">
-              1. Exporter · 2. Déposer dans Drive · 3. Sur l'autre appareil : Importer depuis Drive
-            </p>
           </div>
         </div>
       </section>

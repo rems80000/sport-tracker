@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { StoreContext, useStore, useStoreReducer } from './store/useStore'
 import { TimerProvider } from './store/timerContext'
+import { DriveSyncProvider } from './store/driveSyncContext'
 import { useTimer } from './store/timerContext'
 import { Navigation } from './components/Navigation'
 import { Sidebar } from './components/Sidebar'
@@ -158,11 +159,13 @@ function App() {
   const store = useStoreReducer()
   return (
     <StoreContext.Provider value={store}>
-      <TimerProvider>
-        <BrowserRouter>
-          <AppInner />
-        </BrowserRouter>
-      </TimerProvider>
+      <DriveSyncProvider>
+        <TimerProvider>
+          <BrowserRouter>
+            <AppInner />
+          </BrowserRouter>
+        </TimerProvider>
+      </DriveSyncProvider>
     </StoreContext.Provider>
   )
 }

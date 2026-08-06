@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect } from 'react'
+import { createContext, useContext, useReducer, useEffect, useRef } from 'react'
 import type { Dispatch } from 'react'
 import type { AppState, AppTheme, SessionLog, LoggedSet, ExerciseSessionOverride, WorkoutSession } from '../types'
 import { loadState, saveState } from '../utils/storage'
@@ -99,8 +99,13 @@ export function useStore() {
 
 export function useStoreReducer() {
   const [state, dispatch] = useReducer(reducer, undefined, loadState)
+  const mounted = useRef(false)
 
   useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true
+      return
+    }
     saveState(state)
   }, [state])
 
