@@ -6,6 +6,7 @@ import { useTimer } from '../store/timerContext'
 import { ExerciseImage } from '../components/ExerciseImage'
 import type { Exercise, ExerciseSet, LoggedSet, Feeling, ExerciseSessionOverride } from '../types'
 import { formatDuration } from '../utils/storage'
+import { resolveAssetUrl } from '../utils/assets'
 import {
   CheckCircle2, Circle, ChevronDown, ChevronUp,
   ArrowLeft, X, Flag, Plus, Minus, Pencil, ImageOff, RotateCcw,
@@ -23,33 +24,69 @@ function NumericStepper({ label, value, onChange, unit = '', min = 0, max, step 
   unit?: string; min?: number; max?: number; step?: number
   displayValue?: string // if provided, show static text (for "Max" etc.) instead of input
 }) {
-  const dec = () => onChange(Math.max(min, value - step))
-  const inc = () => onChange(max !== undefined ? Math.min(max, value + step) : value + step)
+  const [editingValue, setEditingValue] = useState<string | null>(null)
+
+  const clamp = (next: number) => max !== undefined
+    ? Math.min(max, Math.max(min, next))
+    : Math.max(min, next)
+  const setValue = (next: number) => {
+    const clamped = clamp(next)
+    onChange(clamped)
+    setEditingValue(null)
+  }
+  const commitDraft = (raw: string) => {
+    const parsed = Number(raw.trim().replace(',', '.'))
+    if (!Number.isFinite(parsed)) {
+      setEditingValue(null)
+      return
+    }
+    setValue(parsed)
+  }
+  const dec = () => setValue(value - step)
+  const inc = () => setValue(value + step)
   return (
     <div className="flex flex-col items-center gap-0.5">
       <span className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">{label}</span>
-      <div className="flex items-center gap-1">
-        <button onClick={dec} className="w-7 h-7 rounded-md bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform">
-          <Minus size={10} className="text-slate-300" />
+      <div className="flex items-center gap-1.5">
+        <button type="button" onClick={dec} aria-label={`Diminuer ${label}`}
+          className="w-9 h-9 rounded-lg bg-slate-700/80 border border-slate-600/40 flex items-center justify-center active:scale-90 transition-transform">
+          <Minus size={14} className="text-slate-200" />
         </button>
         {displayValue !== undefined
-          ? <span className="text-white text-sm font-bold min-w-[36px] text-center tabular-nums">{displayValue}</span>
+          ? <span className="h-9 min-w-[58px] px-2 rounded-lg border border-slate-600/50 bg-slate-700/60 flex items-center justify-center text-white text-base font-bold text-center tabular-nums">{displayValue}</span>
           : (
-            <div className="flex items-center">
+            <div className="relative">
               <input
-                type="number" inputMode="numeric" value={value}
+                type="text" inputMode="decimal" value={editingValue ?? String(value)}
+                aria-label={label}
                 onChange={e => {
-                  const v = Number(e.target.value)
-                  if (!isNaN(v)) onChange(max !== undefined ? Math.min(max, Math.max(min, v)) : Math.max(min, v))
+                  const next = e.target.value
+                  if (/^\d*(?:[.,]\d*)?$/.test(next)) setEditingValue(next)
                 }}
-                className="w-12 text-center bg-slate-700/60 border border-slate-600/30 rounded text-white text-sm font-bold tabular-nums px-1 py-0.5 focus:outline-none focus:border-indigo-500/60 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                onFocus={e => {
+                  setEditingValue(String(value))
+                  e.currentTarget.select()
+                }}
+                onBlur={e => commitDraft(e.currentTarget.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    commitDraft(e.currentTarget.value)
+                    e.currentTarget.blur()
+                  }
+                  if (e.key === 'Escape') {
+                    setEditingValue(null)
+                    e.currentTarget.blur()
+                  }
+                }}
+                className={`h-9 text-center bg-slate-700/70 border border-slate-500/60 rounded-lg text-white text-base font-black tabular-nums px-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/40 ${unit ? 'w-[72px] pr-6' : 'w-[58px]'}`}
               />
-              {unit && <span className="text-slate-400 text-[11px] ml-0.5">{unit}</span>}
+              {unit && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] pointer-events-none">{unit}</span>}
             </div>
           )
         }
-        <button onClick={inc} className="w-7 h-7 rounded-md bg-slate-700/70 flex items-center justify-center active:scale-90 transition-transform">
-          <Plus size={10} className="text-slate-300" />
+        <button type="button" onClick={inc} aria-label={`Augmenter ${label}`}
+          className="w-9 h-9 rounded-lg bg-slate-700/80 border border-slate-600/40 flex items-center justify-center active:scale-90 transition-transform">
+          <Plus size={14} className="text-slate-200" />
         </button>
       </div>
     </div>
@@ -83,7 +120,7 @@ function PostureLightbox({ src, name, onClose }: { src: string; name: string; on
 function PostureMiniature({ exercise }: { exercise: Pick<Exercise, 'imageGuide' | 'imageUrl' | 'name'> }) {
   const [err, setErr] = useState(false)
   const [lightbox, setLightbox] = useState(false)
-  const src = exercise.imageGuide ?? exercise.imageUrl
+  const src = resolveAssetUrl(exercise.imageGuide ?? exercise.imageUrl)
   if (!src || err) return (
     <div className="flex-shrink-0 rounded-xl border border-slate-600/50 bg-slate-800/70 flex flex-col items-center justify-center gap-1"
       style={{ width: 'clamp(64px,7.5vw,88px)', height: 'clamp(50px,6vw,70px)', minWidth: 64 }}>
@@ -139,6 +176,7 @@ function PostureSection({ exercise }: { exercise: Pick<Exercise, 'imageStart' | 
 
 function PostureImg({ src, label }: { src: string; label: string }) {
   const [err, setErr] = useState(false)
+  const resolvedSrc = resolveAssetUrl(src)
   if (err) return (
     <div className="flex items-center justify-center bg-slate-800/50 rounded-lg h-20">
       <ImageOff size={14} className="text-slate-700" />
@@ -146,7 +184,7 @@ function PostureImg({ src, label }: { src: string; label: string }) {
   )
   return (
     <div className="relative">
-      <img src={src} alt={label} onError={() => setErr(true)} className="w-full rounded-lg object-cover max-h-32" />
+      <img src={resolvedSrc} alt={label} onError={() => setErr(true)} className="w-full rounded-lg object-cover max-h-32" />
       <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded font-medium">{label}</span>
     </div>
   )
