@@ -27,7 +27,8 @@ interface DriveSyncContextValue {
 }
 
 const DriveSyncContext = createContext<DriveSyncContextValue | null>(null)
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() ?? ''
+const DEFAULT_GOOGLE_CLIENT_ID = '894220468485-l4lskba7p745relh8so7eug87r8fi39r.apps.googleusercontent.com'
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || DEFAULT_GOOGLE_CLIENT_ID
 
 export function DriveSyncProvider({ children }: { children: ReactNode }) {
   const { state, dispatch } = useStore()
