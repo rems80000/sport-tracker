@@ -1,4 +1,5 @@
 import type { Exercise, ExerciseCategory } from '../types'
+import { resolveAssetUrl } from '../utils/assets'
 
 const CATEGORY_STYLE: Record<ExerciseCategory, { bg: string; ring: string }> = {
   weight:     { bg: 'bg-indigo-600/25', ring: 'ring-indigo-500/30' },
@@ -30,7 +31,7 @@ export function ExerciseImage({ exercise, size = 'md', className = '' }: Exercis
   if (exercise.imageUrl) {
     return (
       <img
-        src={exercise.imageUrl}
+        src={resolveAssetUrl(exercise.imageUrl)}
         alt={exercise.name}
         className={`${s.img} object-cover rounded-xl ring-1 ${style.ring} flex-shrink-0 ${className}`}
       />
