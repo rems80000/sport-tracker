@@ -73,7 +73,7 @@ function ClockBar() {
             <div className="flex items-center gap-2">
               <a href="https://www.spoonradio.com/" target="_blank" rel="noopener noreferrer" className="hidden lg:block flex-shrink-0 active:scale-95 transition-transform" title="Spoon Radio">
                 <img
-                  src="/final-rems-flag.png"
+                  src={`${import.meta.env.BASE_URL}final-rems-flag.png`}
                   alt="Rems Flag — Spoon Radio"
                   className="rounded-lg object-contain"
                   style={{ height: 'clamp(42px, 7.2vw, 104px)', width: 'auto', maxWidth: 'clamp(42px, 7.2vw, 104px)' }}
