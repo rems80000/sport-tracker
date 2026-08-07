@@ -42,6 +42,26 @@ npm run dev -- --host
 
 ## Synchronisation multi-appareils (Google Drive)
 
+### Synchronisation automatique — Life Hub
+
+L'application peut créer un fichier `remy-life-hub.json` dans Google Drive et le mettre à jour après chaque modification. Ce fichier est conçu pour accueillir plusieurs modules indépendants :
+
+- `trainhard` : séances et programme sportif ;
+- `presence` : historique de méditation (réservé pour l'intégration future) ;
+- `projects` : carte des projets (réservé pour la future application MindMap).
+
+Configuration développeur :
+
+1. Activer Google Drive API dans Google Cloud.
+2. Créer un client OAuth 2.0 de type **Application Web**.
+3. Ajouter les origines JavaScript autorisées (URL de production et URL locale).
+4. Définir `VITE_GOOGLE_CLIENT_ID` à partir de `.env.example`.
+5. Construire et redéployer l'application.
+
+L'application demande uniquement le scope `drive.file`. Aucun Client Secret ne doit être ajouté au code navigateur.
+
+### Export manuel de secours
+
 Pas de backend. Synchro manuelle via export/import JSON.
 
 **Dossier Drive partagé :**  

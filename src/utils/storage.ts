@@ -1,6 +1,7 @@
 import type { AppState, AppTheme, SessionLog } from '../types'
 
 const STORAGE_KEY = 'sport_tracker_v1'
+const LOCAL_UPDATED_AT_KEY = 'sport_tracker_updated_at_v1'
 const VALID_THEMES: AppTheme[] = ['dark', 'tech', 'minimal']
 
 const DEFAULT_STATE: AppState = {
@@ -12,7 +13,11 @@ const DEFAULT_STATE: AppState = {
 export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return DEFAULT_STATE
+    if (!raw) {
+      if (!localStorage.getItem(LOCAL_UPDATED_AT_KEY)) setLocalUpdatedAt(new Date().toISOString())
+      return DEFAULT_STATE
+    }
+    if (!localStorage.getItem(LOCAL_UPDATED_AT_KEY)) setLocalUpdatedAt(new Date().toISOString())
     const parsed = JSON.parse(raw)
     const theme: AppTheme = VALID_THEMES.includes(parsed.theme) ? parsed.theme : 'dark'
     return { ...DEFAULT_STATE, ...parsed, theme }
@@ -24,9 +29,18 @@ export function loadState(): AppState {
 export function saveState(state: AppState): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    setLocalUpdatedAt(new Date().toISOString())
   } catch {
     console.error('Failed to save state')
   }
+}
+
+export function getLocalUpdatedAt(): string {
+  return localStorage.getItem(LOCAL_UPDATED_AT_KEY) ?? new Date(0).toISOString()
+}
+
+export function setLocalUpdatedAt(value: string): void {
+  localStorage.setItem(LOCAL_UPDATED_AT_KEY, value)
 }
 
 export function exportJSON(state: AppState): void {
