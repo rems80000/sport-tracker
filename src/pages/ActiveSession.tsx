@@ -45,19 +45,20 @@ function NumericStepper({ label, value, onChange, unit = '', min = 0, max, step 
   const dec = () => setValue(value - step)
   const inc = () => setValue(value + step)
   return (
-    <div className="flex flex-col items-center gap-0.5">
+    <div className="flex flex-col items-center gap-1">
       <span className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">{label}</span>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1">
         <button type="button" onClick={dec} aria-label={`Diminuer ${label}`}
-          className="w-9 h-9 rounded-lg bg-slate-700/80 border border-slate-600/40 flex items-center justify-center active:scale-90 transition-transform">
-          <Minus size={14} className="text-slate-200" />
+          className="w-11 h-12 rounded-xl bg-slate-700/80 border border-slate-600/50 flex items-center justify-center active:scale-90 transition-transform touch-manipulation">
+          <Minus size={17} className="text-slate-100" />
         </button>
         {displayValue !== undefined
-          ? <span className="h-9 min-w-[58px] px-2 rounded-lg border border-slate-600/50 bg-slate-700/60 flex items-center justify-center text-white text-base font-bold text-center tabular-nums">{displayValue}</span>
+          ? <span className="h-12 min-w-[68px] px-2 rounded-xl border border-slate-500/60 bg-slate-700/60 flex items-center justify-center text-white text-xl font-black text-center tabular-nums">{displayValue}</span>
           : (
             <div className="relative">
               <input
-                type="text" inputMode="decimal" value={editingValue ?? String(value)}
+                type="text" inputMode={label === 'Charge' ? 'decimal' : 'numeric'} value={editingValue ?? String(value)}
+                enterKeyHint="done"
                 aria-label={label}
                 onChange={e => {
                   const next = e.target.value
@@ -66,6 +67,7 @@ function NumericStepper({ label, value, onChange, unit = '', min = 0, max, step 
                 onFocus={e => {
                   setEditingValue(String(value))
                   e.currentTarget.select()
+                  setTimeout(() => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' }), 100)
                 }}
                 onBlur={e => commitDraft(e.currentTarget.value)}
                 onKeyDown={e => {
@@ -78,18 +80,63 @@ function NumericStepper({ label, value, onChange, unit = '', min = 0, max, step 
                     e.currentTarget.blur()
                   }
                 }}
-                className={`h-9 text-center bg-slate-700/70 border border-slate-500/60 rounded-lg text-white text-base font-black tabular-nums px-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/40 ${unit ? 'w-[72px] pr-6' : 'w-[58px]'}`}
+                className={`h-12 text-center bg-slate-700/70 border border-slate-500/70 rounded-xl text-white text-xl font-black tabular-nums px-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/50 ${unit ? 'w-[82px] pr-7' : 'w-[68px]'}`}
               />
-              {unit && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] pointer-events-none">{unit}</span>}
+              {unit && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none">{unit}</span>}
             </div>
           )
         }
         <button type="button" onClick={inc} aria-label={`Augmenter ${label}`}
-          className="w-9 h-9 rounded-lg bg-slate-700/80 border border-slate-600/40 flex items-center justify-center active:scale-90 transition-transform">
-          <Plus size={14} className="text-slate-200" />
+          className="w-11 h-12 rounded-xl bg-slate-700/80 border border-slate-600/50 flex items-center justify-center active:scale-90 transition-transform touch-manipulation">
+          <Plus size={17} className="text-slate-100" />
         </button>
       </div>
     </div>
+  )
+}
+
+// ─── SessionNumberField ──────────────────────────────────────────────────────
+function SessionNumberField({ label, value, onChange, mode = 'numeric', placeholder = '0', autoFocus = false }: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  mode?: 'numeric' | 'decimal'
+  placeholder?: string
+  autoFocus?: boolean
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs text-slate-300 font-bold">{label}</span>
+      <input
+        data-session-field
+        type="text"
+        inputMode={mode}
+        enterKeyHint="next"
+        autoFocus={autoFocus}
+        value={value}
+        onChange={e => {
+          const next = e.target.value
+          const pattern = mode === 'decimal' ? /^\d*(?:[.,]\d*)?$/ : /^\d*$/
+          if (pattern.test(next)) onChange(next)
+        }}
+        onFocus={e => {
+          e.currentTarget.select()
+          setTimeout(() => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' }), 100)
+        }}
+        onKeyDown={e => {
+          if (e.key !== 'Enter') return
+          const fields = Array.from(e.currentTarget.form?.querySelectorAll<HTMLInputElement>('[data-session-field]') ?? [])
+          const index = fields.indexOf(e.currentTarget)
+          if (index < fields.length - 1) {
+            e.preventDefault()
+            fields[index + 1].focus()
+            fields[index + 1].select()
+          }
+        }}
+        className="h-14 w-full rounded-xl border border-slate-500/70 bg-slate-700 px-3 text-center text-2xl font-black tabular-nums text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/50"
+        placeholder={placeholder}
+      />
+    </label>
   )
 }
 
@@ -214,78 +261,52 @@ function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onL
     if (effectiveSet.restSeconds > 0) onStartTimer(effectiveSet.restSeconds)
   }
 
+  const handleDetailedValidate = () => {
+    onLog({
+      completed: true,
+      reps: reps ? parseInt(reps) : undefined,
+      weightKg: weight ? parseFloat(weight.replace(',', '.')) : undefined,
+      durationSeconds: duration ? parseInt(duration) : undefined,
+      distanceMeters: distance ? parseInt(distance) : undefined,
+      strokesCount: strokes ? parseInt(strokes) : undefined,
+      intensity: intensity ? Math.min(10, Math.max(1, parseInt(intensity))) : undefined,
+    })
+    setEditing(false)
+    if (effectiveSet.restSeconds > 0) onStartTimer(effectiveSet.restSeconds)
+  }
+
   if (editing) return (
-    <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3 animate-slide-up">
+    <form onSubmit={e => { e.preventDefault(); handleDetailedValidate() }} className="rounded-xl border border-indigo-500/40 bg-indigo-500/5 p-3 animate-slide-up">
       <div className="flex items-center gap-2 mb-2.5">
         <span className="text-sm font-bold text-indigo-400">Série {setIndex + 1}</span>
-        <button onClick={() => setEditing(false)} className="ml-auto text-slate-500 p-1"><X size={12} /></button>
+        <button type="button" onClick={() => setEditing(false)} className="ml-auto text-slate-500 p-1"><X size={12} /></button>
       </div>
       <div className="grid grid-cols-2 gap-2 mb-3">
         {exercise.type === 'reps' && (
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400 font-medium">Reps</span>
-            <input type="number" inputMode="numeric" value={reps} onChange={e => setReps(e.target.value)}
-              className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="0" />
-          </label>
+          <SessionNumberField label="Répétitions" value={reps} onChange={setReps} autoFocus />
         )}
         {isCardio && (
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400 font-medium">Répétitions / intervalles</span>
-            <input type="number" inputMode="numeric" value={reps} onChange={e => setReps(e.target.value)}
-              className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="0" />
-          </label>
+          <SessionNumberField label="Intervalles" value={reps} onChange={setReps} autoFocus />
         )}
         {showWeight && (
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400 font-medium">Charge (kg)</span>
-            <input type="number" inputMode="decimal" value={weight} onChange={e => setWeight(e.target.value)}
-              className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="0" />
-          </label>
+          <SessionNumberField label="Charge (kg)" value={weight} onChange={setWeight} mode="decimal" autoFocus={exercise.type !== 'reps' && !isCardio} />
         )}
         {(exercise.type === 'duration' || isCardio) && (
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-slate-400 font-medium">Durée (s)</span>
-            <input type="number" inputMode="numeric" value={duration} onChange={e => setDuration(e.target.value)}
-              className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="0" />
-          </label>
+          <SessionNumberField label="Durée (s)" value={duration} onChange={setDuration} autoFocus={exercise.type === 'duration' && !showWeight} />
         )}
         {isCardio && (
           <>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-slate-400 font-medium">Distance (m)</span>
-              <input type="number" inputMode="numeric" value={distance} onChange={e => setDistance(e.target.value)}
-                className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="ex. 150" />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-slate-400 font-medium">Coups / mouvements</span>
-              <input type="number" inputMode="numeric" value={strokes} onChange={e => setStrokes(e.target.value)}
-                className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="0" />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-slate-400 font-medium">Intensité (1-10)</span>
-              <input type="number" inputMode="numeric" value={intensity} onChange={e => setIntensity(e.target.value)}
-                min={1} max={10}
-                className="bg-slate-700 rounded-lg px-2 py-2.5 text-white text-sm font-semibold text-center" placeholder="5" />
-            </label>
+            <SessionNumberField label="Distance (m)" value={distance} onChange={setDistance} placeholder="150" />
+            <SessionNumberField label="Coups" value={strokes} onChange={setStrokes} />
+            <SessionNumberField label="Intensité (1–10)" value={intensity} onChange={setIntensity} placeholder="5" />
           </>
         )}
       </div>
-      <button onClick={() => {
-        onLog({
-          completed: true,
-          reps: reps ? parseInt(reps) : undefined,
-          weightKg: weight ? parseFloat(weight) : undefined,
-          durationSeconds: duration ? parseInt(duration) : undefined,
-          distanceMeters: distance ? parseInt(distance) : undefined,
-          strokesCount: strokes ? parseInt(strokes) : undefined,
-          intensity: intensity ? Math.min(10, Math.max(1, parseInt(intensity))) : undefined,
-        })
-        setEditing(false)
-      }}
-        className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold active:scale-95 transition-transform">
-        Enregistrer
+      <button type="submit"
+        className="w-full min-h-12 rounded-xl bg-indigo-600 text-white text-base font-bold active:scale-95 transition-transform touch-manipulation">
+        Valider la série
       </button>
-    </div>
+    </form>
   )
 
   if (isCompleted) return (
@@ -319,7 +340,11 @@ function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onL
       <span className="text-slate-400 text-sm">S{setIndex + 1}</span>
       {effectiveSet.targetReps != null && effectiveSet.targetReps > 0 && <span className="text-slate-600 text-xs">{effectiveSet.targetReps}r</span>}
       {effectiveSet.targetDuration != null && <span className="text-slate-600 text-xs">{formatDuration(effectiveSet.targetDuration)}</span>}
-      <button onClick={handleQuickValidate} className="ml-auto px-3 py-1.5 rounded-lg bg-indigo-600/80 text-white text-xs font-semibold active:scale-95 transition-transform">
+      <button onClick={() => setEditing(true)} aria-label={`Modifier la série ${setIndex + 1}`}
+        className="ml-auto w-9 h-9 rounded-lg bg-slate-700/50 text-slate-300 flex items-center justify-center active:scale-90">
+        <Pencil size={14} />
+      </button>
+      <button onClick={handleQuickValidate} className="min-h-9 px-3 rounded-lg bg-indigo-600/80 text-white text-xs font-semibold active:scale-95 transition-transform touch-manipulation">
         ✓{effectiveSet.restSeconds > 0 ? ` ${effectiveSet.restSeconds}s` : ''}
       </button>
     </div>
