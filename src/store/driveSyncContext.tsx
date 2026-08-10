@@ -7,6 +7,7 @@ import {
   createJsonFile,
   downloadJson,
   findLifeHubFile,
+  isDriveAuthError,
   requestDriveAccess,
   revokeDriveAccess,
   updateJsonFile,
@@ -20,6 +21,7 @@ interface DriveSyncContextValue {
   status: SyncStatus
   configured: boolean
   lastSyncedAt: string | null
+  fileUrl: string | null
   error: string | null
   connect: () => Promise<void>
   disconnect: () => void
@@ -29,12 +31,31 @@ interface DriveSyncContextValue {
 const DriveSyncContext = createContext<DriveSyncContextValue | null>(null)
 const DEFAULT_GOOGLE_CLIENT_ID = '894220468485-l4lskba7p745relh8so7eug87r8fi39r.apps.googleusercontent.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || DEFAULT_GOOGLE_CLIENT_ID
+const DRIVE_FILE_ID_KEY = 'remy_life_hub_drive_file_id_v1'
+const DRIVE_LAST_SYNC_KEY = 'remy_life_hub_drive_last_sync_v1'
+
+function readStoredValue(key: string) {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function storeSyncMetadata(fileId: string, syncedAt: string) {
+  try {
+    localStorage.setItem(DRIVE_FILE_ID_KEY, fileId)
+    localStorage.setItem(DRIVE_LAST_SYNC_KEY, syncedAt)
+  } catch {
+    // The sync still succeeded even if browser storage is unavailable.
+  }
+}
 
 export function DriveSyncProvider({ children }: { children: ReactNode }) {
   const { state, dispatch } = useStore()
   const stateRef = useRef(state)
   const tokenRef = useRef<string | null>(null)
-  const fileIdRef = useRef<string | null>(null)
+  const fileIdRef = useRef<string | null>(readStoredValue(DRIVE_FILE_ID_KEY))
   const documentRef = useRef<LifeHubDocument | undefined>(undefined)
   const readyRef = useRef(false)
   const applyingRemoteRef = useRef(false)
@@ -42,7 +63,8 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
   const lastStateJsonRef = useRef(JSON.stringify(state))
   const configured = Boolean(GOOGLE_CLIENT_ID)
   const [status, setStatus] = useState<SyncStatus>(configured ? 'disconnected' : 'unconfigured')
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => readStoredValue(DRIVE_LAST_SYNC_KEY))
+  const [fileId, setFileId] = useState<string | null>(() => readStoredValue(DRIVE_FILE_ID_KEY))
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => { stateRef.current = state }, [state])
@@ -58,8 +80,10 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
       ? await updateJsonFile(token, fileIdRef.current, document)
       : await createJsonFile(token, document)
     fileIdRef.current = file.id
+    setFileId(file.id)
     documentRef.current = document
     setLastSyncedAt(updatedAt)
+    storeSyncMetadata(file.id, updatedAt)
     setStatus('synced')
   }, [])
 
@@ -74,6 +98,7 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     }
 
     fileIdRef.current = file.id
+    setFileId(file.id)
     const remote = parseLifeHubDocument(await downloadJson<unknown>(token, file.id))
     documentRef.current = remote
     const remoteUpdatedAt = remote.modules.trainhard.updatedAt
@@ -87,6 +112,7 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
       setLocalUpdatedAt(remoteUpdatedAt)
       queueMicrotask(() => { applyingRemoteRef.current = false })
       setLastSyncedAt(remoteUpdatedAt)
+      storeSyncMetadata(file.id, remoteUpdatedAt)
       setStatus('synced')
     } else {
       await pushState()
@@ -110,7 +136,9 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
       tokenRef.current = null
       readyRef.current = false
       setStatus('error')
-      setError(caught instanceof Error ? caught.message : 'Échec de la connexion Google Drive')
+      setError(isDriveAuthError(caught)
+        ? 'Connexion Google expirée. Reconnectez Google Drive puis relancez la synchronisation.'
+        : caught instanceof Error ? caught.message : 'Échec de la connexion Google Drive')
     }
   }, [configured, initialSync])
 
@@ -126,13 +154,23 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
   }, [configured])
 
   const syncNow = useCallback(async () => {
+    if (!tokenRef.current) {
+      await connect()
+      return
+    }
     try {
       await pushState()
     } catch (caught) {
+      if (isDriveAuthError(caught)) {
+        tokenRef.current = null
+        readyRef.current = false
+      }
       setStatus('error')
-      setError(caught instanceof Error ? caught.message : 'Échec de la synchronisation')
+      setError(isDriveAuthError(caught)
+        ? 'Connexion Google expirée. Cliquez sur « Reconnecter Google », puis synchronisez.'
+        : caught instanceof Error ? caught.message : 'Échec de la synchronisation')
     }
-  }, [pushState])
+  }, [connect, pushState])
 
   useEffect(() => {
     const currentJson = JSON.stringify(state)
@@ -147,7 +185,16 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
   }, [state, syncNow])
 
   return (
-    <DriveSyncContext.Provider value={{ status, configured, lastSyncedAt, error, connect, disconnect, syncNow }}>
+    <DriveSyncContext.Provider value={{
+      status,
+      configured,
+      lastSyncedAt,
+      fileUrl: fileId ? `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view` : null,
+      error,
+      connect,
+      disconnect,
+      syncNow,
+    }}>
       {children}
     </DriveSyncContext.Provider>
   )
