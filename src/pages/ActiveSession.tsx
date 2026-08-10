@@ -19,10 +19,11 @@ function generateId(): string {
 const WEIGHT_PRESETS = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
 
 // ─── NumericStepper ────────────────────────────────────────────────────────────
-function NumericStepper({ label, value, onChange, unit = '', min = 0, max, step = 1, displayValue }: {
+function NumericStepper({ label, value, onChange, unit = '', min = 0, max, step = 1, displayValue, clock = false }: {
   label: string; value: number; onChange: (v: number) => void
   unit?: string; min?: number; max?: number; step?: number
   displayValue?: string // if provided, show static text (for "Max" etc.) instead of input
+  clock?: boolean
 }) {
   const [editingValue, setEditingValue] = useState<string | null>(null)
 
@@ -35,7 +36,20 @@ function NumericStepper({ label, value, onChange, unit = '', min = 0, max, step 
     setEditingValue(null)
   }
   const commitDraft = (raw: string) => {
-    const parsed = Number(raw.trim().replace(',', '.'))
+    const trimmed = raw.trim()
+    let parsed: number
+    if (clock) {
+      if (trimmed.includes(':')) {
+        const [minutes, seconds = '0'] = trimmed.split(':')
+        parsed = (Number(minutes) * 60) + Math.min(59, Number(seconds))
+      } else if (/^\d{3,4}$/.test(trimmed)) {
+        parsed = (Number(trimmed.slice(0, -2)) * 60) + Math.min(59, Number(trimmed.slice(-2)))
+      } else {
+        parsed = Number(trimmed) * 60
+      }
+    } else {
+      parsed = Number(trimmed.replace(',', '.'))
+    }
     if (!Number.isFinite(parsed)) {
       setEditingValue(null)
       return
@@ -57,15 +71,17 @@ function NumericStepper({ label, value, onChange, unit = '', min = 0, max, step 
           : (
             <div className="relative">
               <input
-                type="text" inputMode={label === 'Charge' ? 'decimal' : 'numeric'} value={editingValue ?? String(value)}
+                type="text" inputMode={label === 'Charge' ? 'decimal' : 'numeric'}
+                value={editingValue ?? (clock ? `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}` : String(value))}
                 enterKeyHint="done"
                 aria-label={label}
                 onChange={e => {
                   const next = e.target.value
-                  if (/^\d*(?:[.,]\d*)?$/.test(next)) setEditingValue(next)
+                  const valid = clock ? /^\d*:?[0-5]?\d?$/.test(next) : /^\d*(?:[.,]\d*)?$/.test(next)
+                  if (valid) setEditingValue(next)
                 }}
                 onFocus={e => {
-                  setEditingValue(String(value))
+                  setEditingValue(clock ? `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}` : String(value))
                   e.currentTarget.select()
                   setTimeout(() => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' }), 100)
                 }}
@@ -80,7 +96,7 @@ function NumericStepper({ label, value, onChange, unit = '', min = 0, max, step 
                     e.currentTarget.blur()
                   }
                 }}
-                className={`h-12 text-center bg-slate-700/70 border border-slate-500/70 rounded-xl text-white text-xl font-black tabular-nums px-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/50 ${unit ? 'w-[82px] pr-7' : 'w-[68px]'}`}
+                className={`h-12 text-center bg-slate-700/70 border border-slate-500/70 rounded-xl text-white text-xl font-black tabular-nums px-2 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/50 ${clock ? 'w-[86px]' : unit ? 'w-[82px] pr-7' : 'w-[68px]'}`}
               />
               {unit && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none">{unit}</span>}
             </div>
@@ -137,6 +153,50 @@ function SessionNumberField({ label, value, onChange, mode = 'numeric', placehol
         placeholder={placeholder}
       />
     </label>
+  )
+}
+
+function SessionDurationField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const totalSeconds = Math.max(0, parseInt(value) || 0)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  const updatePart = (part: 'minutes' | 'seconds', raw: string) => {
+    if (!/^\d*$/.test(raw)) return
+    const next = parseInt(raw) || 0
+    onChange(String(part === 'minutes'
+      ? (next * 60) + seconds
+      : (minutes * 60) + Math.min(59, next)))
+  }
+
+  return (
+    <fieldset className="col-span-2">
+      <legend className="mb-1.5 text-xs text-slate-300 font-bold">Durée</legend>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase text-slate-400">Minutes</span>
+          <input data-session-field type="text" inputMode="numeric" enterKeyHint="next"
+            value={String(minutes)} onChange={e => updatePart('minutes', e.target.value)}
+            onFocus={e => { e.currentTarget.select(); setTimeout(() => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' }), 100) }}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return
+              e.preventDefault()
+              const next = e.currentTarget.form?.querySelectorAll<HTMLInputElement>('[data-session-field]')
+              const index = Array.from(next ?? []).indexOf(e.currentTarget)
+              next?.[index + 1]?.focus()
+              next?.[index + 1]?.select()
+            }}
+            className="h-14 rounded-xl border border-slate-500/70 bg-slate-700 text-center text-2xl font-black tabular-nums text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/50" />
+        </label>
+        <span className="pb-2 text-2xl font-black text-slate-300">:</span>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase text-slate-400">Secondes</span>
+          <input data-session-field type="text" inputMode="numeric" enterKeyHint="done"
+            value={String(seconds).padStart(2, '0')} onChange={e => updatePart('seconds', e.target.value)}
+            onFocus={e => { e.currentTarget.select(); setTimeout(() => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' }), 100) }}
+            className="h-14 rounded-xl border border-slate-500/70 bg-slate-700 text-center text-2xl font-black tabular-nums text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/50" />
+        </label>
+      </div>
+    </fieldset>
   )
 }
 
@@ -292,7 +352,9 @@ function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onL
           <SessionNumberField label="Charge (kg)" value={weight} onChange={setWeight} mode="decimal" autoFocus={exercise.type !== 'reps' && !isCardio} />
         )}
         {(exercise.type === 'duration' || isCardio) && (
-          <SessionNumberField label="Durée (s)" value={duration} onChange={setDuration} autoFocus={exercise.type === 'duration' && !showWeight} />
+          isCardio
+            ? <SessionDurationField value={duration} onChange={setDuration} />
+            : <SessionNumberField label="Durée (s)" value={duration} onChange={setDuration} autoFocus={!showWeight} />
         )}
         {isCardio && (
           <>
@@ -435,7 +497,7 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
           {/* Params row */}
           <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2 pt-2 border-t border-slate-700/20">
             <NumericStepper label="Séries" value={eff.numSets!} onChange={v => update({ numSets: v })} min={1} step={1} />
-            <NumericStepper label="Durée" value={eff.targetDuration ?? 30} onChange={v => update({ targetDuration: v })} min={5} step={15} unit="s" />
+            <NumericStepper label="Durée" value={eff.targetDuration ?? 30} onChange={v => update({ targetDuration: v })} min={5} step={15} clock />
             <NumericStepper label="Intensité" value={eff.intensity ?? 5} onChange={v => update({ intensity: v })} min={1} max={10} step={1} />
             <NumericStepper label="Coups" value={eff.targetStrokes ?? 0} onChange={v => update({ targetStrokes: v })} min={0} step={5} />
             <NumericStepper label="Repos" value={eff.restSeconds ?? 0} onChange={v => update({ restSeconds: v })} min={0} step={15} unit="s" />
@@ -470,7 +532,7 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
                 displayValue={eff.targetReps === 0 ? 'Max' : undefined} />
             )}
             {(exercise.type === 'duration' || isCardio) && (
-              <NumericStepper label="Durée" value={eff.targetDuration ?? 30} onChange={v => update({ targetDuration: v })} min={5} step={5} unit="s" />
+              <NumericStepper label="Durée" value={eff.targetDuration ?? 30} onChange={v => update({ targetDuration: v })} min={5} step={5} unit={isCardio ? '' : 's'} clock={isCardio} />
             )}
             {isCardio && (
               <>
