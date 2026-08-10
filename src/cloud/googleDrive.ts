@@ -9,6 +9,10 @@ interface TokenResponse {
   error_description?: string
 }
 
+interface OAuthPopupError {
+  type?: string
+}
+
 interface TokenClient {
   callback: (response: TokenResponse) => void
   requestAccessToken: (options?: { prompt?: string }) => void
@@ -23,6 +27,7 @@ declare global {
             client_id: string
             scope: string
             callback: (response: TokenResponse) => void
+            error_callback?: (error: OAuthPopupError) => void
           }) => TokenClient
           revoke: (token: string, callback?: () => void) => void
         }
@@ -35,6 +40,20 @@ export interface DriveFile {
   id: string
   name: string
   modifiedTime?: string
+}
+
+export class DriveRequestError extends Error {
+  readonly status: number
+
+  constructor(status: number) {
+    super(`Google Drive a refusé la requête (${status}).`)
+    this.name = 'DriveRequestError'
+    this.status = status
+  }
+}
+
+export function isDriveAuthError(error: unknown) {
+  return error instanceof DriveRequestError && (error.status === 401 || error.status === 403)
 }
 
 function escapeDriveQuery(value: string) {
@@ -50,8 +69,7 @@ async function driveFetch(accessToken: string, url: string, init?: RequestInit) 
     },
   })
   if (!response.ok) {
-    const detail = await response.text().catch(() => '')
-    throw new Error(`Google Drive ${response.status}${detail ? ` — ${detail}` : ''}`)
+    throw new DriveRequestError(response.status)
   }
   return response
 }
@@ -89,6 +107,17 @@ export async function requestDriveAccess(clientId: string): Promise<string> {
           return
         }
         resolve(response.access_token)
+      },
+      error_callback: popupError => {
+        if (popupError.type === 'popup_failed_to_open') {
+          reject(new Error('La fenêtre Google a été bloquée. Autorisez les pop-ups puis réessayez.'))
+          return
+        }
+        if (popupError.type === 'popup_closed') {
+          reject(new Error('Connexion Google annulée.'))
+          return
+        }
+        reject(new Error('Impossible d’ouvrir la connexion Google.'))
       },
     })
     client.requestAccessToken({ prompt: 'consent' })

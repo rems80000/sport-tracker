@@ -6,8 +6,6 @@ import { Download, Upload, Trash2, Timer, Info, Cloud, ExternalLink, LogIn, LogO
 import { useNavigate } from 'react-router-dom'
 import type { AppTheme } from '../types'
 
-const GDRIVE_FOLDER_URL = 'https://drive.google.com/drive/folders/1uxLqfrhpZkEqY7aFvFYfkeSLjSxP3ZLZ'
-
 const THEMES: { value: AppTheme; label: string; sub: string; preview: string }[] = [
   {
     value: 'dark',
@@ -232,7 +230,7 @@ export function Settings() {
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold active:scale-95 transition-transform disabled:opacity-40 disabled:active:scale-100"
               >
                 {driveBusy ? <RefreshCw size={14} className="animate-spin" /> : <LogIn size={14} />}
-                Connecter Google
+                {drive.status === 'error' ? 'Reconnecter Google' : 'Connecter Google'}
               </button>
             ) : (
               <>
@@ -262,12 +260,12 @@ export function Settings() {
               <Download size={14} /> Export manuel
             </button>
             <a
-              href={GDRIVE_FOLDER_URL}
+              href={drive.fileUrl ?? 'https://drive.google.com/drive/my-drive'}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-700/40 border border-slate-600/30 text-slate-300 text-xs font-bold active:scale-95 transition-transform"
             >
-              <ExternalLink size={14} /> Ouvrir Drive
+              <ExternalLink size={14} /> {drive.fileUrl ? 'Ouvrir la sauvegarde' : 'Ouvrir Drive'}
             </a>
           </div>
         </div>
