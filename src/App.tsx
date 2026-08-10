@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { StoreContext, useStore, useStoreReducer } from './store/useStore'
 import { TimerProvider } from './store/timerContext'
@@ -18,6 +18,10 @@ import { Vacances } from './pages/Vacances'
 import { MOTIVATIONAL_QUOTES } from './data/program'
 import { formatDuration } from './utils/storage'
 import { Timer, Play, Pause, SkipForward } from 'lucide-react'
+import { HubSwitcher } from './components/HubSwitcher'
+import { HubHome } from './pages/HubHome'
+import { Projects } from './pages/Projects'
+import { PresenceApp } from './modules/presence/PresenceApp'
 
 const FR_DAYS_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 const FR_MONTHS_FULL = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
@@ -38,10 +42,7 @@ function ClockBar() {
   const timerIsActive = running || finished || remaining !== total
 
   const dateStr = `${FR_DAYS_FULL[now.getDay()]} ${String(now.getDate()).padStart(2, '0')} ${FR_MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`
-  const quote = useMemo(() => {
-    const idx = Math.floor(Date.now() / 86400000) % MOTIVATIONAL_QUOTES.length
-    return MOTIVATIONAL_QUOTES[idx]
-  }, [])
+  const quote = MOTIVATIONAL_QUOTES[Math.floor(now.getTime() / 86400000) % MOTIVATIONAL_QUOTES.length]
 
   return (
     <>
@@ -132,9 +133,28 @@ function ClockBar() {
 
 function AppInner() {
   const { state } = useStore()
+  const location = useLocation()
+  const isHubModule = location.pathname === '/hub' || location.pathname.startsWith('/presence') || location.pathname.startsWith('/projets')
+
+  if (isHubModule) {
+    return (
+      <div className="app-root flex min-h-dvh flex-col bg-slate-950">
+        <HubSwitcher />
+        <main className="relative min-h-0 flex-1 overflow-auto">
+          <Routes>
+            <Route path="/hub" element={<HubHome />} />
+            <Route path="/presence/*" element={<PresenceApp />} />
+            <Route path="/projets/*" element={<Projects />} />
+          </Routes>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className={`app-root flex flex-col min-h-dvh theme-${state.theme}`}>
       <ClockBar />
+      <HubSwitcher />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 overflow-y-auto lg:pl-6">
