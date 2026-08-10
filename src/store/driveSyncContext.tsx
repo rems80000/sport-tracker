@@ -14,6 +14,14 @@ import {
 } from '../cloud/googleDrive'
 import { getLocalUpdatedAt, setLocalUpdatedAt } from '../utils/storage'
 import { useStore } from './useStore'
+import {
+  LIFE_HUB_MODULE_UPDATED_EVENT,
+  LIFE_HUB_PRESENCE_IMPORTED_EVENT,
+  loadPresenceSnapshot,
+  loadProjectsSnapshot,
+  savePresenceData,
+  saveProjectsData,
+} from '../cloud/moduleStorage'
 
 type SyncStatus = 'unconfigured' | 'disconnected' | 'connecting' | 'syncing' | 'synced' | 'error'
 
@@ -75,15 +83,23 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     setStatus('syncing')
     setError(null)
     const updatedAt = getLocalUpdatedAt()
-    const document = createLifeHubDocument(stateRef.current, updatedAt, documentRef.current)
+    const presence = loadPresenceSnapshot()
+    const projects = loadProjectsSnapshot()
+    const document = createLifeHubDocument(
+      stateRef.current,
+      updatedAt,
+      documentRef.current,
+      { version: 1, updatedAt: presence.updatedAt, data: presence.data },
+      { version: 1, updatedAt: projects.updatedAt, data: projects.data },
+    )
     const file = fileIdRef.current
       ? await updateJsonFile(token, fileIdRef.current, document)
       : await createJsonFile(token, document)
     fileIdRef.current = file.id
     setFileId(file.id)
     documentRef.current = document
-    setLastSyncedAt(updatedAt)
-    storeSyncMetadata(file.id, updatedAt)
+    setLastSyncedAt(document.updatedAt)
+    storeSyncMetadata(file.id, document.updatedAt)
     setStatus('synced')
   }, [])
 
@@ -103,6 +119,7 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     documentRef.current = remote
     const remoteUpdatedAt = remote.modules.trainhard.updatedAt
     const localUpdatedAt = getLocalUpdatedAt()
+    let needsPush = false
 
     if (Date.parse(remoteUpdatedAt) > Date.parse(localUpdatedAt)) {
       applyingRemoteRef.current = true
@@ -111,13 +128,35 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
       lastStateJsonRef.current = JSON.stringify(remote.modules.trainhard.data)
       setLocalUpdatedAt(remoteUpdatedAt)
       queueMicrotask(() => { applyingRemoteRef.current = false })
-      setLastSyncedAt(remoteUpdatedAt)
-      storeSyncMetadata(file.id, remoteUpdatedAt)
-      setStatus('synced')
     } else {
-      await pushState()
+      needsPush = true
     }
+
+    const localPresence = loadPresenceSnapshot()
+    const remotePresence = remote.modules.presence
+    if (remotePresence && Date.parse(remotePresence.updatedAt) > Date.parse(localPresence.updatedAt)) {
+      savePresenceData(remotePresence.data, remotePresence.updatedAt, false)
+      window.dispatchEvent(new Event(LIFE_HUB_PRESENCE_IMPORTED_EVENT))
+    } else if (!remotePresence || Date.parse(localPresence.updatedAt) > Date.parse(remotePresence.updatedAt)) {
+      needsPush = true
+    }
+
+    const localProjects = loadProjectsSnapshot()
+    const remoteProjects = remote.modules.projects
+    if (remoteProjects && Date.parse(remoteProjects.updatedAt) > Date.parse(localProjects.updatedAt)) {
+      saveProjectsData(remoteProjects.data, remoteProjects.updatedAt, false)
+    } else if (!remoteProjects || Date.parse(localProjects.updatedAt) > Date.parse(remoteProjects.updatedAt)) {
+      needsPush = true
+    }
+
     readyRef.current = true
+    if (needsPush) {
+      await pushState()
+    } else {
+      setLastSyncedAt(remote.updatedAt)
+      storeSyncMetadata(file.id, remote.updatedAt)
+      setStatus('synced')
+    }
   }, [dispatch, pushState])
 
   const connect = useCallback(async () => {
@@ -183,6 +222,16 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
   }, [state, syncNow])
+
+  useEffect(() => {
+    const handleModuleUpdate = () => {
+      if (!readyRef.current || !tokenRef.current) return
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = setTimeout(() => { void syncNow() }, 1800)
+    }
+    window.addEventListener(LIFE_HUB_MODULE_UPDATED_EVENT, handleModuleUpdate)
+    return () => window.removeEventListener(LIFE_HUB_MODULE_UPDATED_EVENT, handleModuleUpdate)
+  }, [syncNow])
 
   return (
     <DriveSyncContext.Provider value={{
