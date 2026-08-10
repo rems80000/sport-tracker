@@ -29,7 +29,9 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Build for GitHub Pages
-        run: npm run build -- --base=/sport-tracker/
+        run: |
+          npm run build -- --base=/sport-tracker/
+          cp dist/index.html dist/404.html
 
       - name: Publish gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
