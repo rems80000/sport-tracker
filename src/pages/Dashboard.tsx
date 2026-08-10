@@ -4,10 +4,10 @@ import { PROGRAM, buildSessionById } from '../data/program'
 import { SessionCard } from '../components/SessionCard'
 import type { SessionStatus, SessionLog, WorkoutSession } from '../types'
 import { getStartOfWeek } from '../utils/storage'
-import { Flame, Zap, PlayCircle, Radio } from 'lucide-react'
+import { Flame, Zap, PlayCircle } from 'lucide-react'
 import { useMemo } from 'react'
+import { SpoonPlayer } from '../components/SpoonPlayer'
 
-const SPOON_RADIO_URL = 'https://www.spoon.radio'
 const DAY_ORDER = ['monday', 'tuesday', 'thursday', 'friday']
 const BODYWEIGHT_KG = 70
 
@@ -217,7 +217,7 @@ export function Dashboard() {
         {/* Colonne droite : stats */}
         <div className="flex flex-col gap-4">
 
-          {/* Streak + radio */}
+          {/* Streak */}
           <div className="flex items-center gap-3">
             {streak > 0 && (
               <div className="flex items-center gap-1.5 bg-orange-500/15 border border-orange-500/30 rounded-xl px-3 py-2">
@@ -226,12 +226,9 @@ export function Dashboard() {
                 <span className="text-orange-600 text-xs font-semibold">j.</span>
               </div>
             )}
-            <a href={SPOON_RADIO_URL} target="_blank" rel="noopener noreferrer"
-              className="flex lg:hidden items-center gap-1.5 bg-rose-600/15 border border-rose-500/30 rounded-xl px-3 py-2 active:scale-95 transition-transform">
-              <Radio size={13} className="text-rose-400" />
-              <span className="text-rose-400 font-bold text-xs">Spoon Radio</span>
-            </a>
           </div>
+
+          <SpoonPlayer />
 
           {/* Progression semaine */}
           <div className="bg-slate-900/80 border border-slate-700/50 rounded-2xl p-4"
@@ -294,17 +291,6 @@ export function Dashboard() {
             </div>
           )}
 
-          {/* Spoon Radio PC */}
-          <a href={SPOON_RADIO_URL} target="_blank" rel="noopener noreferrer"
-            className="hidden lg:flex items-center gap-3 bg-rose-950/40 border border-rose-700/30 rounded-2xl px-4 py-3 active:scale-95 transition-transform hover:border-rose-600/50">
-            <div className="w-9 h-9 rounded-xl bg-rose-600/20 flex items-center justify-center flex-shrink-0">
-              <Radio size={18} className="text-rose-400" />
-            </div>
-            <div>
-              <p className="text-rose-300 font-bold text-sm">Spoon Radio</p>
-              <p className="text-rose-600 text-xs">Ouvrir dans un nouvel onglet →</p>
-            </div>
-          </a>
         </div>
       </div>
 

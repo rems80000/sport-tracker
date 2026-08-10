@@ -1,6 +1,7 @@
 import { useStore } from '../store/useStore'
+import { useDriveSync } from '../store/driveSyncContext'
 import { buildSessionById } from '../data/program'
-import { CheckCircle, Clock, Trash2, ChevronDown, ChevronUp, Zap, Pencil, X, Check } from 'lucide-react'
+import { CheckCircle, Clock, Trash2, ChevronDown, ChevronUp, Zap, Pencil, X, Check, Cloud, RefreshCw } from 'lucide-react'
 import type { SessionStatus, Feeling, SessionLog, LoggedSet } from '../types'
 import type { WorkoutSession } from '../types'
 import { groupSessionsByWeek } from '../utils/storage'
@@ -101,6 +102,7 @@ function SetEditRow({ set, exName, onChange }: {
 
 export function History() {
   const { state, dispatch } = useStore()
+  const drive = useDriveSync()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftLog, setDraftLog] = useState<SessionLog | null>(null)
@@ -121,10 +123,18 @@ export function History() {
   }
 
   if (state.sessions.length === 0) {
+    const driveBusy = drive.status === 'connecting' || drive.status === 'syncing'
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 px-4">
         <Clock size={48} className="text-slate-600" />
-        <p className="text-slate-400 text-center">Aucune séance enregistrée.<br />Commencez votre première séance !</p>
+        <p className="text-slate-300 font-bold text-center">L’historique local est vide.</p>
+        <p className="max-w-md text-slate-500 text-sm text-center">La récupération cherche aussi les versions précédentes de <code>remy-life-hub.json</code> sans écraser les séances retrouvées.</p>
+        <button onClick={() => void drive.syncNow()} disabled={driveBusy}
+          className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+          {driveBusy ? <RefreshCw size={17} className="animate-spin" /> : <Cloud size={17} />}
+          {driveBusy ? 'Recherche en cours…' : 'Restaurer depuis Google Drive'}
+        </button>
+        {drive.error && <p className="max-w-md text-center text-xs text-red-400">{drive.error}</p>}
       </div>
     )
   }

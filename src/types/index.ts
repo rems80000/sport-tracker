@@ -87,6 +87,7 @@ export type AppTheme = 'dark' | 'tech' | 'minimal'
 
 export interface AppState {
   sessions: SessionLog[]
+  deletedSessionIds?: string[]
   activeSessionLog: SessionLog | null
   theme: AppTheme
   sidebarCompact?: boolean

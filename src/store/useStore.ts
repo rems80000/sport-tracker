@@ -65,13 +65,18 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         sessions: [completed, ...state.sessions],
+        deletedSessionIds: (state.deletedSessionIds ?? []).filter(id => id !== completed.id),
         activeSessionLog: null,
       }
     }
     case 'CANCEL_SESSION':
       return { ...state, activeSessionLog: null }
     case 'DELETE_SESSION':
-      return { ...state, sessions: state.sessions.filter(s => s.id !== action.payload) }
+      return {
+        ...state,
+        sessions: state.sessions.filter(s => s.id !== action.payload),
+        deletedSessionIds: [...new Set([...(state.deletedSessionIds ?? []), action.payload])],
+      }
     case 'UPDATE_SESSION_LOG':
       return { ...state, sessions: state.sessions.map(s => s.id === action.payload.id ? action.payload : s) }
     case 'IMPORT_STATE':

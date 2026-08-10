@@ -42,6 +42,11 @@ export interface DriveFile {
   modifiedTime?: string
 }
 
+export interface DriveRevision {
+  id: string
+  modifiedTime?: string
+}
+
 export class DriveRequestError extends Error {
   readonly status: number
 
@@ -139,6 +144,24 @@ export async function downloadJson<T>(accessToken: string, fileId: string): Prom
   const response = await driveFetch(
     accessToken,
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+  )
+  return response.json() as Promise<T>
+}
+
+export async function listJsonRevisions(accessToken: string, fileId: string): Promise<DriveRevision[]> {
+  const fields = encodeURIComponent('revisions(id,modifiedTime)')
+  const response = await driveFetch(
+    accessToken,
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/revisions?pageSize=100&fields=${fields}`,
+  )
+  const data = await response.json() as { revisions?: DriveRevision[] }
+  return (data.revisions ?? []).reverse()
+}
+
+export async function downloadJsonRevision<T>(accessToken: string, fileId: string, revisionId: string): Promise<T> {
+  const response = await driveFetch(
+    accessToken,
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/revisions/${encodeURIComponent(revisionId)}?alt=media`,
   )
   return response.json() as Promise<T>
 }
