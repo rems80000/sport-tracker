@@ -8,6 +8,7 @@ const LEGACY_PRESENCE_KEY = 'present-history'
 
 export const LIFE_HUB_MODULE_UPDATED_EVENT = 'lifehub-module-updated'
 export const LIFE_HUB_PRESENCE_IMPORTED_EVENT = 'lifehub-presence-imported'
+export const LIFE_HUB_PROJECTS_IMPORTED_EVENT = 'lifehub-projects-imported'
 
 function readJson<T>(key: string, fallback: T): T {
   try {
