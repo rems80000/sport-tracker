@@ -1,6 +1,8 @@
 import type { AppState, AppTheme, SessionLog } from '../types'
 
 const STORAGE_KEY = 'sport_tracker_v1'
+const BACKUP_KEY = 'sport_tracker_backup_v1'
+const SESSION_ARCHIVE_KEY = 'sport_tracker_session_archive_v1'
 const LOCAL_UPDATED_AT_KEY = 'sport_tracker_updated_at_v1'
 const VALID_THEMES: AppTheme[] = ['dark', 'tech', 'minimal']
 
@@ -15,12 +17,19 @@ export function loadState(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) {
       if (!localStorage.getItem(LOCAL_UPDATED_AT_KEY)) setLocalUpdatedAt(new Date().toISOString())
-      return DEFAULT_STATE
+      const backup = readState(BACKUP_KEY)
+      const archived = readSessions(SESSION_ARCHIVE_KEY)
+      return mergeAppStates(backup ?? DEFAULT_STATE, { ...DEFAULT_STATE, sessions: archived })
     }
     if (!localStorage.getItem(LOCAL_UPDATED_AT_KEY)) setLocalUpdatedAt(new Date().toISOString())
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(raw) as AppState
     const theme: AppTheme = VALID_THEMES.includes(parsed.theme) ? parsed.theme : 'dark'
-    return { ...DEFAULT_STATE, ...parsed, theme }
+    const backup = readState(BACKUP_KEY)
+    const archived = readSessions(SESSION_ARCHIVE_KEY)
+    return mergeAppStates(
+      { ...DEFAULT_STATE, ...backup, ...parsed, theme },
+      { ...DEFAULT_STATE, sessions: archived },
+    )
   } catch {
     return DEFAULT_STATE
   }
@@ -28,10 +37,53 @@ export function loadState(): AppState {
 
 export function saveState(state: AppState): void {
   try {
+    const previous = readState(STORAGE_KEY)
+    if (previous?.sessions.length) localStorage.setItem(BACKUP_KEY, JSON.stringify(previous))
+    const deleted = new Set(state.deletedSessionIds ?? [])
+    const archive = mergeSessions(readSessions(SESSION_ARCHIVE_KEY), state.sessions).filter(session => !deleted.has(session.id))
+    localStorage.setItem(SESSION_ARCHIVE_KEY, JSON.stringify(archive))
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
     setLocalUpdatedAt(new Date().toISOString())
   } catch {
     console.error('Failed to save state')
+  }
+}
+
+function readState(key: string): AppState | null {
+  try {
+    const value = localStorage.getItem(key)
+    return value ? JSON.parse(value) as AppState : null
+  } catch {
+    return null
+  }
+}
+
+function readSessions(key: string): SessionLog[] {
+  try {
+    const value = localStorage.getItem(key)
+    const parsed = value ? JSON.parse(value) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function mergeSessions(first: SessionLog[], second: SessionLog[]) {
+  const sessions = new Map<string, SessionLog>()
+  for (const session of [...first, ...second]) if (session?.id) sessions.set(session.id, session)
+  return [...sessions.values()].sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+}
+
+export function mergeAppStates(preferred: AppState, other: AppState): AppState {
+  const deletedSessionIds = [...new Set([...(preferred.deletedSessionIds ?? []), ...(other.deletedSessionIds ?? [])])]
+  const deleted = new Set(deletedSessionIds)
+  return {
+    ...other,
+    ...preferred,
+    sessions: mergeSessions(other.sessions ?? [], preferred.sessions ?? []).filter(session => !deleted.has(session.id)),
+    deletedSessionIds,
+    activeSessionLog: preferred.activeSessionLog ?? other.activeSessionLog ?? null,
+    customProgram: preferred.customProgram ?? other.customProgram,
   }
 }
 

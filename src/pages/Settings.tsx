@@ -54,7 +54,7 @@ export function Settings() {
   }
 
   const handleDeleteAll = () => {
-    dispatch({ type: 'IMPORT_STATE', payload: { sessions: [], activeSessionLog: null, theme: state.theme } })
+    dispatch({ type: 'IMPORT_STATE', payload: { sessions: [], deletedSessionIds: [...new Set([...(state.deletedSessionIds ?? []), ...state.sessions.map(session => session.id)])], activeSessionLog: null, theme: state.theme } })
     setShowDeleteConfirm(false)
     navigate('/')
   }

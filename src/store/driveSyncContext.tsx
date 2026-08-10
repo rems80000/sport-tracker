@@ -6,13 +6,16 @@ import type { LifeHubDocument } from '../cloud/lifeHub'
 import {
   createJsonFile,
   downloadJson,
+  downloadJsonRevision,
   findLifeHubFile,
   isDriveAuthError,
+  listJsonRevisions,
   requestDriveAccess,
   revokeDriveAccess,
   updateJsonFile,
 } from '../cloud/googleDrive'
-import { getLocalUpdatedAt, setLocalUpdatedAt } from '../utils/storage'
+import { getLocalUpdatedAt, mergeAppStates, setLocalUpdatedAt } from '../utils/storage'
+import type { AppState } from '../types'
 import { useStore } from './useStore'
 import {
   LIFE_HUB_MODULE_UPDATED_EVENT,
@@ -58,6 +61,28 @@ function storeSyncMetadata(fileId: string, syncedAt: string) {
   } catch {
     // The sync still succeeded even if browser storage is unavailable.
   }
+}
+
+function extractTrainhardState(value: unknown): AppState | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as { sessions?: unknown; modules?: { trainhard?: { data?: unknown } } }
+  const state = (candidate.modules?.trainhard?.data ?? candidate) as Partial<AppState>
+  if (!Array.isArray(state.sessions)) return null
+  return state as AppState
+}
+
+async function recoverTrainhardRevision(token: string, fileId: string) {
+  try {
+    const revisions = await listJsonRevisions(token, fileId)
+    for (const revision of revisions) {
+      const value = await downloadJsonRevision<unknown>(token, fileId, revision.id)
+      const state = extractTrainhardState(value)
+      if (state?.sessions.length) return state
+    }
+  } catch {
+    // Revision recovery is best-effort; normal synchronization must remain available.
+  }
+  return null
 }
 
 export function DriveSyncProvider({ children }: { children: ReactNode }) {
@@ -122,15 +147,32 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     const localUpdatedAt = getLocalUpdatedAt()
     let needsPush = false
 
-    if (Date.parse(remoteUpdatedAt) > Date.parse(localUpdatedAt)) {
+    const localState = stateRef.current
+    const remoteState = remote.modules.trainhard.data
+    const remoteIsNewer = Date.parse(remoteUpdatedAt) > Date.parse(localUpdatedAt)
+    let mergedState = remoteIsNewer
+      ? mergeAppStates(remoteState, localState)
+      : mergeAppStates(localState, remoteState)
+
+    if (mergedState.sessions.length === 0 && !(mergedState.deletedSessionIds?.length)) {
+      const recovered = await recoverTrainhardRevision(token, file.id)
+      if (recovered) mergedState = mergeAppStates(mergedState, recovered)
+    }
+
+    const localChanged = JSON.stringify(mergedState) !== JSON.stringify(localState)
+    const remoteChanged = JSON.stringify(mergedState) !== JSON.stringify(remoteState)
+    if (localChanged) {
       applyingRemoteRef.current = true
-      dispatch({ type: 'IMPORT_STATE', payload: remote.modules.trainhard.data })
-      stateRef.current = remote.modules.trainhard.data
-      lastStateJsonRef.current = JSON.stringify(remote.modules.trainhard.data)
-      setLocalUpdatedAt(remoteUpdatedAt)
+      dispatch({ type: 'IMPORT_STATE', payload: mergedState })
+      stateRef.current = mergedState
+      lastStateJsonRef.current = JSON.stringify(mergedState)
       queueMicrotask(() => { applyingRemoteRef.current = false })
-    } else {
+    }
+    if (remoteChanged || !remoteIsNewer) {
       needsPush = true
+      setLocalUpdatedAt(new Date().toISOString())
+    } else if (localChanged) {
+      setLocalUpdatedAt(remoteUpdatedAt)
     }
 
     const localPresence = loadPresenceSnapshot()
