@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LIFE_HUB_PRESENCE_IMPORTED_EVENT, loadPresenceSnapshot, savePresenceData } from '../../cloud/moduleStorage'
+import { loadPresenceAudio, removePresenceAudio, savePresenceAudio } from './presenceAudio'
+import type { PresenceAudioSlot } from './presenceAudio'
 import './presence.css'
 
 type Page = 'today' | 'practice' | 'journey' | 'tips' | 'settings'
 type Ambience = 'rain' | 'waves' | 'forest'
 type Session = { id: string; title: string; subtitle: string; minutes: number; tone: string; icon: string; audio?: string; ambience?: Ambience }
 type HistoryItem = { id: number; title: string; minutes: number; date: string }
+type AudioChoice = { name: string; url: string } | null
 
 const sessions: Session[] = [
   { id: 'calm', title: 'Méditation guidée', subtitle: 'Votre séance audio', minutes: 5, tone: 'sage', icon: '♫', audio: 'meditation.m4a' },
@@ -89,9 +92,30 @@ export function PresenceApp() {
   const [sound, setSound] = useState(true)
   const [breathing, setBreathing] = useState(true)
   const [history, setHistory] = useState<HistoryItem[]>(() => loadPresenceSnapshot().data.history as HistoryItem[])
+  const [voiceAudio, setVoiceAudio] = useState<AudioChoice>(null)
+  const [relaxAudio, setRelaxAudio] = useState<AudioChoice>(null)
   const completedRef = useRef(false)
-  const audioRef = useRef<HTMLAudioElement>(null)
+  const voiceRef = useRef<HTMLAudioElement>(null)
+  const relaxRef = useRef<HTMLAudioElement>(null)
+  const voiceEndedRef = useRef(false)
   const ambienceRef = useRef<AudioContext | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([loadPresenceAudio('voice'), loadPresenceAudio('relax')]).then(([voice, relax]) => {
+      if (cancelled) {
+        if (voice?.url) URL.revokeObjectURL(voice.url)
+        if (relax?.url) URL.revokeObjectURL(relax.url)
+        return
+      }
+      setVoiceAudio(voice)
+      setRelaxAudio(relax)
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => () => { if (voiceAudio?.url) URL.revokeObjectURL(voiceAudio.url) }, [voiceAudio])
+  useEffect(() => () => { if (relaxAudio?.url) URL.revokeObjectURL(relaxAudio.url) }, [relaxAudio])
 
   useEffect(() => {
     const refreshFromDrive = () => setHistory(loadPresenceSnapshot().data.history as HistoryItem[])
@@ -109,10 +133,11 @@ export function PresenceApp() {
     if (seconds !== 0 || completedRef.current) return
     completedRef.current = true
     setRunning(false)
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-    }
+    ;[voiceRef.current, relaxRef.current].forEach(audio => {
+      if (!audio) return
+      audio.pause()
+      audio.currentTime = 0
+    })
     if (ambienceRef.current) {
       void ambienceRef.current.close()
       ambienceRef.current = null
@@ -139,21 +164,24 @@ export function PresenceApp() {
     if (sound) playGong()
     if (ambienceRef.current) void ambienceRef.current.close()
     ambienceRef.current = sound && session.ambience ? createAmbience(session.ambience) : null
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-      if (sound && session.audio) void audioRef.current.play().catch(() => undefined)
-    }
+    voiceEndedRef.current = false
+    ;[voiceRef.current, relaxRef.current].forEach(audio => {
+      if (!audio) return
+      audio.pause()
+      audio.currentTime = 0
+    })
+    if (voiceRef.current && sound && session.audio) void voiceRef.current.play().catch(() => undefined)
   }
 
   function closeTimer() {
     setActive(false)
     setRunning(false)
     setSeconds(selected.minutes * 60)
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-    }
+    ;[voiceRef.current, relaxRef.current].forEach(audio => {
+      if (!audio) return
+      audio.pause()
+      audio.currentTime = 0
+    })
     if (ambienceRef.current) {
       void ambienceRef.current.close()
       ambienceRef.current = null
@@ -163,9 +191,10 @@ export function PresenceApp() {
   function toggleTimer() {
     setRunning((current) => {
       const next = !current
-      if (audioRef.current && selected.audio && sound) {
-        if (next) void audioRef.current.play().catch(() => undefined)
-        else audioRef.current.pause()
+      if (selected.audio && sound) {
+        const currentAudio = voiceEndedRef.current ? relaxRef.current : voiceRef.current
+        if (next) void currentAudio?.play().catch(() => undefined)
+        else currentAudio?.pause()
       }
       if (ambienceRef.current) {
         if (next) void ambienceRef.current.resume()
@@ -180,9 +209,30 @@ export function PresenceApp() {
     setSeconds(session.minutes * 60)
   }
 
+  function finishVoice() {
+    voiceEndedRef.current = true
+    if (running && sound && relaxRef.current && relaxAudio) {
+      relaxRef.current.currentTime = 0
+      void relaxRef.current.play().catch(() => undefined)
+    }
+  }
+
+  async function replaceAudio(slot: PresenceAudioSlot, file: File) {
+    const saved = await savePresenceAudio(slot, file)
+    if (slot === 'voice') setVoiceAudio(saved)
+    else setRelaxAudio(saved)
+  }
+
+  async function resetAudio(slot: PresenceAudioSlot) {
+    await removePresenceAudio(slot)
+    if (slot === 'voice') setVoiceAudio(null)
+    else setRelaxAudio(null)
+  }
+
   return (
     <div className="presence-root app-shell">
-      <audio ref={audioRef} src={`${import.meta.env.BASE_URL}meditation.m4a`} preload="auto" />
+      <audio ref={voiceRef} src={voiceAudio?.url ?? `${import.meta.env.BASE_URL}meditation.m4a`} preload="auto" onEnded={finishVoice} />
+      <audio ref={relaxRef} src={relaxAudio?.url} preload="auto" loop />
       <aside className="sidebar">
         <button className="brand" onClick={() => setPage('today')} aria-label="Accueil Présent">
           <span className="brand-mark"><i /><i /><i /></span><span>présent</span>
@@ -205,7 +255,7 @@ export function PresenceApp() {
         {page === 'practice' && <Practice selected={selected} onChoose={choose} onBegin={begin} />}
         {page === 'journey' && <Journey history={history} totalMinutes={totalMinutes} />}
         {page === 'tips' && <Tips />}
-        {page === 'settings' && <Settings sound={sound} breathing={breathing} setSound={setSound} setBreathing={setBreathing} clearHistory={() => { setHistory([]); savePresenceData({ history: [] }) }} />}
+        {page === 'settings' && <Settings sound={sound} breathing={breathing} voiceAudio={voiceAudio} relaxAudio={relaxAudio} setSound={setSound} setBreathing={setBreathing} onReplaceAudio={replaceAudio} onResetAudio={resetAudio} clearHistory={() => { setHistory([]); savePresenceData({ history: [] }) }} />}
       </main>
 
       <nav className="mobile-nav" aria-label="Navigation mobile">{nav.map((item) => <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => setPage(item.id)}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav>
@@ -253,8 +303,12 @@ function Tips() {
   return <div className="page tips-page"><p className="eyebrow">PETITS REPÈRES</p><h1>Méditer, simplement.</h1><p className="lead">Quelques conseils pour vous accompagner sans pression.</p><section className="featured-tip"><span>1 min</span><div><p className="eyebrow">LA PAUSE EXPRESS</p><h2>Trois respirations conscientes</h2><p>Inspirez lentement par le nez. Sentez l’air entrer. Expirez sans forcer. Répétez trois fois en laissant les épaules descendre.</p></div><i>≈</i></section><div className="tips-grid">{tips.map(tip => <article key={tip.title}><span className="tip-icon">{tip.icon}</span><p className="eyebrow">{tip.tag}</p><h2>{tip.title}</h2><p>{tip.text}</p></article>)}</div></div>
 }
 
-function Settings({ sound, breathing, setSound, setBreathing, clearHistory }: { sound: boolean; breathing: boolean; setSound: (v: boolean) => void; setBreathing: (v: boolean) => void; clearHistory: () => void }) {
-  return <div className="page settings-page"><p className="eyebrow">VOTRE ESPACE</p><h1>Réglages</h1><p className="lead">Créez une expérience qui vous ressemble.</p><section className="settings-card"><h2>Pendant la pratique</h2><Setting label="Sons de début et de fin" detail="Un gong doux accompagne la séance" value={sound} onChange={setSound}/><Setting label="Guide de respiration" detail="Afficher le rythme inspirer / expirer" value={breathing} onChange={setBreathing}/></section><section className="settings-card"><h2>Vos données</h2><div className="setting-row"><div><b>Historique Life Hub</b><small>Synchronisé avec les autres modules via Google Drive.</small></div><button className="danger" onClick={clearHistory}>Effacer</button></div></section><section className="about"><span className="brand-mark"><i/><i/><i/></span><h2>présent</h2><p>Prendre soin de son esprit, simplement.</p><small>Module Life Hub 1.0</small></section></div>
+function Settings({ sound, breathing, voiceAudio, relaxAudio, setSound, setBreathing, onReplaceAudio, onResetAudio, clearHistory }: { sound: boolean; breathing: boolean; voiceAudio: AudioChoice; relaxAudio: AudioChoice; setSound: (v: boolean) => void; setBreathing: (v: boolean) => void; onReplaceAudio: (slot: PresenceAudioSlot, file: File) => Promise<void>; onResetAudio: (slot: PresenceAudioSlot) => Promise<void>; clearHistory: () => void }) {
+  return <div className="page settings-page"><p className="eyebrow">VOTRE ESPACE</p><h1>Réglages</h1><p className="lead">Créez une expérience qui vous ressemble.</p><section className="settings-card"><h2>Pendant la pratique</h2><Setting label="Sons de début et de fin" detail="Un gong doux accompagne la séance" value={sound} onChange={setSound}/><Setting label="Guide de respiration" detail="Afficher le rythme inspirer / expirer" value={breathing} onChange={setBreathing}/></section><section className="settings-card audio-settings"><h2>Votre séance audio</h2><p className="audio-help">La voix est lue en premier. Dès qu’elle se termine, la bande relaxante démarre et boucle jusqu’à la fin du chronomètre.</p><AudioFileRow slot="voice" label="Voix guidée" fileName={voiceAudio?.name ?? 'Méditation.m4a · fichier intégré'} custom={Boolean(voiceAudio)} onReplace={onReplaceAudio} onReset={onResetAudio}/><AudioFileRow slot="relax" label="Bande son relaxante" fileName={relaxAudio?.name ?? 'Aucune bande son sélectionnée'} custom={Boolean(relaxAudio)} onReplace={onReplaceAudio} onReset={onResetAudio}/><small className="audio-device-note">Les fichiers audio restent sur cet appareil pour préserver leur confidentialité. L’historique, lui, continue d’être synchronisé sur Drive.</small></section><section className="settings-card"><h2>Vos données</h2><div className="setting-row"><div><b>Historique Life Hub</b><small>Synchronisé avec les autres modules via Google Drive.</small></div><button className="danger" onClick={clearHistory}>Effacer</button></div></section><section className="about"><span className="brand-mark"><i/><i/><i/></span><h2>présent</h2><p>Prendre soin de son esprit, simplement.</p><small>Module Life Hub 1.1</small></section></div>
+}
+
+function AudioFileRow({ slot, label, fileName, custom, onReplace, onReset }: { slot: PresenceAudioSlot; label: string; fileName: string; custom: boolean; onReplace: (slot: PresenceAudioSlot, file: File) => Promise<void>; onReset: (slot: PresenceAudioSlot) => Promise<void> }) {
+  return <div className="audio-file-row"><div><b>{label}</b><small title={fileName}>{fileName}</small></div><div className="audio-actions"><label className="audio-button">{custom ? 'Remplacer' : 'Choisir'}<input className="audio-picker" type="file" accept="audio/*,.m4a,.mp3,.wav,.ogg" onChange={event => { const file = event.target.files?.[0]; if (file) void onReplace(slot, file); event.target.value = '' }} /></label>{custom && <button className="audio-reset" onClick={() => void onReset(slot)}>Réinitialiser</button>}</div></div>
 }
 
 function Setting({ label, detail, value, onChange }: { label: string; detail: string; value: boolean; onChange: (v: boolean) => void }) { return <div className="setting-row"><div><b>{label}</b><small>{detail}</small></div><button role="switch" aria-checked={value} className={value ? 'switch on' : 'switch'} onClick={() => onChange(!value)}><span /></button></div> }
@@ -264,4 +318,3 @@ function TimerModal({ session, seconds, progress, running, breathing, completed,
   const circumference = 2 * Math.PI * radius
   return <div className="timer-overlay"><button className="close" onClick={onClose} aria-label="Fermer">×</button><div className="timer-brand"><span className="brand-mark"><i/><i/><i/></span><span>présent</span></div>{completed ? <div className="complete"><span>✦</span><p className="eyebrow">SÉANCE TERMINÉE</p><h1>Merci d'avoir pris ce temps.</h1><p>Emportez ce calme avec vous.</p><div><button className="secondary" onClick={onRestart}>Recommencer</button><button className="primary" onClick={onClose}>Terminer</button></div></div> : <><div className={running && breathing ? 'timer-circle breathing' : 'timer-circle'}><svg viewBox="0 0 300 300"><circle className="track" cx="150" cy="150" r={radius}/><circle className="progress" cx="150" cy="150" r={radius} style={{ strokeDasharray: circumference, strokeDashoffset: circumference * (1 - progress) }}/></svg><div><small>{breathing ? (Math.floor(seconds / 4) % 2 ? 'EXPIRER' : 'INSPIRER') : session.title.toUpperCase()}</small><strong>{formatTime(seconds)}</strong><span>{session.title}</span></div></div><button className="pause" onClick={onToggle} aria-label={running ? 'Mettre en pause' : 'Reprendre'}>{running ? 'Ⅱ' : '▶'}</button><p className="timer-hint">{running ? 'Laissez votre respiration trouver son rythme naturel.' : 'Votre séance est en pause.'}</p></>}</div>
 }
-

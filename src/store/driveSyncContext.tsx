@@ -17,6 +17,7 @@ import { useStore } from './useStore'
 import {
   LIFE_HUB_MODULE_UPDATED_EVENT,
   LIFE_HUB_PRESENCE_IMPORTED_EVENT,
+  LIFE_HUB_PROJECTS_IMPORTED_EVENT,
   loadPresenceSnapshot,
   loadProjectsSnapshot,
   savePresenceData,
@@ -145,6 +146,7 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     const remoteProjects = remote.modules.projects
     if (remoteProjects && Date.parse(remoteProjects.updatedAt) > Date.parse(localProjects.updatedAt)) {
       saveProjectsData(remoteProjects.data, remoteProjects.updatedAt, false)
+      window.dispatchEvent(new Event(LIFE_HUB_PROJECTS_IMPORTED_EVENT))
     } else if (!remoteProjects || Date.parse(localProjects.updatedAt) > Date.parse(remoteProjects.updatedAt)) {
       needsPush = true
     }

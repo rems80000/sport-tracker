@@ -90,4 +90,18 @@
 :scope.app-shell{min-height:100%;position:relative}
 :scope .timer-overlay{position:fixed}
 
+.audio-settings{background:linear-gradient(145deg,#faf8f2,#f0f3ec)}
+.audio-help{margin:-2px 0 12px;color:#74837d;font-size:13px;line-height:1.45}
+.audio-file-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid #e3e1d8}
+.audio-file-row>div:first-child{display:flex;min-width:0;flex-direction:column}
+.audio-file-row small{max-width:360px;margin-top:4px;overflow:hidden;color:#87918d;text-overflow:ellipsis;white-space:nowrap}
+.audio-actions{display:flex;flex-shrink:0;gap:7px}
+.audio-button,.audio-reset{border-radius:20px;padding:8px 13px;font-size:12px;font-weight:600;cursor:pointer}
+.audio-button{background:#2f5b4f;color:#fff}
+.audio-reset{border:1px solid #d1c9b9;background:transparent;color:#7d6f5f}
+.audio-picker{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+.audio-device-note{display:block;margin-top:10px;color:#8a948f;line-height:1.4}
+
+@media(max-width:720px){.audio-file-row{align-items:flex-start;flex-direction:column}.audio-actions{width:100%}.audio-button,.audio-reset{flex:1;text-align:center}}
+
 }
