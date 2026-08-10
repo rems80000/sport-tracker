@@ -16,10 +16,22 @@ export interface ProjectNode {
   status?: 'idea' | 'active' | 'paused' | 'done'
   notes?: string
   tags?: string[]
+  position?: { x: number; y: number }
+  color?: string
+}
+
+export interface ProjectEdge {
+  id: string
+  sourceId: string
+  targetId: string
+  label?: string
+  kind?: 'parent' | 'dependency' | 'reference'
 }
 
 export interface ProjectsData {
   nodes: ProjectNode[]
+  edges: ProjectEdge[]
+  activeViewId?: string
 }
 
 export interface PresenceData {
@@ -45,18 +57,24 @@ export function createLifeHubDocument(
   trainhard: AppState,
   updatedAt: string,
   existing?: LifeHubDocument,
+  presence?: LifeHubModule<PresenceData>,
+  projects?: LifeHubModule<ProjectsData>,
 ): LifeHubDocument {
+  const trainhardModule: LifeHubModule<AppState> = { version: 1, updatedAt, data: trainhard }
+  const modules = {
+    ...existing?.modules,
+    ...(presence ? { presence } : {}),
+    ...(projects ? { projects } : {}),
+    trainhard: trainhardModule,
+  }
+  const documentUpdatedAt = Object.values(modules).reduce(
+    (latest, module) => Date.parse(module.updatedAt) > Date.parse(latest) ? module.updatedAt : latest,
+    updatedAt,
+  )
   return {
     schemaVersion: LIFE_HUB_SCHEMA_VERSION,
-    updatedAt,
-    modules: {
-      ...existing?.modules,
-      trainhard: {
-        version: 1,
-        updatedAt,
-        data: trainhard,
-      },
-    },
+    updatedAt: documentUpdatedAt,
+    modules,
   }
 }
 

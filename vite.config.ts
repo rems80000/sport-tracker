@@ -11,9 +11,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Sport Tracker',
-        short_name: 'SportTracker',
-        description: 'Suivi de programme sport maison',
+        name: 'Remy Life Hub',
+        short_name: 'Life Hub',
+        description: 'Sport, méditation et projets dans une seule application',
         theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',
@@ -24,7 +24,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,m4a}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         cleanupOutdatedCaches: true,
       },
