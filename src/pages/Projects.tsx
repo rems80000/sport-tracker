@@ -1,6 +1,6 @@
-import { ExternalLink, GitBranch, Plus, Save, Trash2, X } from 'lucide-react'
+import { ExternalLink, GitBranch, Plus, Save, Trash2, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent } from 'react'
+import type { ChangeEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { ProjectNode, ProjectsData } from '../cloud/lifeHub'
 import { LIFE_HUB_PROJECTS_IMPORTED_EVENT, loadProjectsSnapshot, saveProjectsData } from '../cloud/moduleStorage'
 
@@ -18,11 +18,26 @@ function normalizedProjects(): ProjectsData {
   return { ...EMPTY_PROJECTS, ...data, nodes: data.nodes ?? [], edges: data.edges ?? [] }
 }
 
+function isProjectsData(value: unknown): value is ProjectsData {
+  if (!value || typeof value !== 'object') return false
+  const data = value as Partial<ProjectsData>
+  return Array.isArray(data.nodes) && Array.isArray(data.edges) && data.nodes.every(node => Boolean(node && typeof node.id === 'string' && typeof node.title === 'string'))
+}
+
+function projectsFromImport(value: unknown): ProjectsData | null {
+  if (isProjectsData(value)) return value
+  if (!value || typeof value !== 'object') return null
+  const document = value as { modules?: { projects?: { data?: unknown } } }
+  return isProjectsData(document.modules?.projects?.data) ? document.modules.projects.data : null
+}
+
 export function Projects() {
   const [projects, setProjects] = useState<ProjectsData>(normalizedProjects)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [importMessage, setImportMessage] = useState('')
   const dragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
+  const importRef = useRef<HTMLInputElement>(null)
   const projectsRef = useRef(projects)
   const selected = projects.nodes.find(node => node.id === selectedId)
 
@@ -57,6 +72,25 @@ export function Projects() {
     const edge = parent ? [{ id: crypto.randomUUID(), sourceId: parent.id, targetId: id, kind: 'parent' as const }] : []
     persist({ ...projects, nodes: [...projects.nodes, node], edges: [...projects.edges, ...edge] })
     setSelectedId(id)
+  }
+
+  async function importProjects(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      const imported = projectsFromImport(JSON.parse(await file.text()))
+      if (!imported) throw new Error('format')
+      const nodeIds = new Set(projects.nodes.map(node => node.id))
+      const edgeIds = new Set(projects.edges.map(edge => edge.id))
+      const newNodes = imported.nodes.filter(node => !nodeIds.has(node.id))
+      const knownNodeIds = new Set([...nodeIds, ...newNodes.map(node => node.id)])
+      const newEdges = imported.edges.filter(edge => !edgeIds.has(edge.id) && knownNodeIds.has(edge.sourceId) && knownNodeIds.has(edge.targetId))
+      persist({ ...projects, nodes: [...projects.nodes, ...newNodes], edges: [...projects.edges, ...newEdges] })
+      setImportMessage(newNodes.length ? `${newNodes.length} cartes ajoutées et synchronisées.` : 'Toutes ces cartes sont déjà présentes.')
+    } catch {
+      setImportMessage('Fichier incompatible : utilisez un export Projets Life Hub.')
+    }
   }
 
   function updateNode(changes: Partial<ProjectNode>) {
@@ -109,8 +143,12 @@ export function Projects() {
           <h1 className="truncate text-xl font-black sm:text-2xl">Clarifier, relier, avancer.</h1>
         </div>
         <span className="text-xs text-slate-500">{projects.nodes.length} nœud{projects.nodes.length > 1 ? 's' : ''} · sauvegarde automatique</span>
+        <input ref={importRef} type="file" accept="application/json,.json" className="hidden" onChange={importProjects} />
+        <button onClick={() => importRef.current?.click()} className="flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-black text-amber-300"><Upload size={17} /> Importer des cartes</button>
         <button onClick={() => addNode()} className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-sm font-black text-slate-950"><Plus size={17} /> Ajouter une idée</button>
       </header>
+
+      {importMessage && <button onClick={() => setImportMessage('')} className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-left text-xs font-bold text-amber-200 lg:px-8">{importMessage} <span className="ml-2 opacity-60">×</span></button>}
 
       <div className="relative flex-1 overflow-auto">
         <div ref={canvasRef} onPointerMove={moveNode} onPointerUp={finishDrag} onPointerCancel={finishDrag}

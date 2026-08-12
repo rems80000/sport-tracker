@@ -1,4 +1,4 @@
-import { ExternalLink, Music2, Radio } from 'lucide-react'
+import { ExternalLink, LogIn, Music2, Radio, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
@@ -44,6 +44,7 @@ export function SpoonPlayer() {
   const [spotifyUrl, setSpotifyUrl] = useState(() => savedValue(SPOTIFY_KEY, DEFAULT_SPOTIFY_URL))
   const [spotifyDraft, setSpotifyDraft] = useState(spotifyUrl)
   const [spotifyError, setSpotifyError] = useState('')
+  const [spotifyFrameKey, setSpotifyFrameKey] = useState(0)
   const station = SPOON_STATIONS.find(item => item.id === stationId) ?? SPOON_STATIONS[0]
   const embedUrl = spotifyEmbedUrl(spotifyUrl) ?? spotifyEmbedUrl(DEFAULT_SPOTIFY_URL)!
 
@@ -70,25 +71,27 @@ export function SpoonPlayer() {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-rose-700/30 bg-rose-950/30 p-3">
-      <div className="mb-3 grid grid-cols-2 rounded-xl bg-slate-950/70 p-1" role="tablist" aria-label="Source audio">
-        <button type="button" role="tab" aria-selected={source === 'spoon'} onClick={() => chooseSource('spoon')} className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-black transition ${source === 'spoon' ? 'bg-rose-600 text-white' : 'text-slate-500 hover:text-white'}`}><Radio size={14} /> Spoon</button>
-        <button type="button" role="tab" aria-selected={source === 'spotify'} onClick={() => chooseSource('spotify')} className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-black transition ${source === 'spotify' ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:text-white'}`}><Music2 size={14} /> Spotify</button>
+    <section className={`relative overflow-hidden rounded-3xl border p-3 shadow-2xl transition-colors ${source === 'spoon' ? 'border-rose-500/30 bg-gradient-to-br from-rose-950/80 via-slate-950 to-violet-950/60 shadow-rose-950/30' : 'border-emerald-500/30 bg-gradient-to-br from-emerald-950/80 via-slate-950 to-black shadow-emerald-950/30'}`}>
+      <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+      <div className="relative mb-3 grid grid-cols-2 rounded-2xl border border-white/5 bg-black/40 p-1.5" role="tablist" aria-label="Source audio">
+        <button type="button" role="tab" aria-selected={source === 'spoon'} onClick={() => chooseSource('spoon')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${source === 'spoon' ? 'bg-gradient-to-r from-rose-600 to-violet-600 text-white shadow-lg shadow-rose-950' : 'text-slate-500 hover:text-white'}`}><Radio size={15} /> Spoon</button>
+        <button type="button" role="tab" aria-selected={source === 'spotify'} onClick={() => chooseSource('spotify')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${source === 'spotify' ? 'bg-[#1ed760] text-black shadow-lg shadow-emerald-950' : 'text-slate-500 hover:text-white'}`}><Music2 size={15} /> Spotify</button>
       </div>
 
       {source === 'spoon' ? (
         <div role="tabpanel">
-          <div className="mb-2 flex items-center gap-3">
-            <img src={`${import.meta.env.BASE_URL}final-rems-flag.png`} alt="Spoon Radio" className="h-10 w-10 rounded-xl object-cover" />
+          <div className="mb-3 flex items-center gap-3">
+            <img src={`${import.meta.env.BASE_URL}final-rems-flag.png`} alt="Spoon Radio" className="h-12 w-12 rounded-2xl object-cover ring-2 ring-rose-500/40" />
             <div className="min-w-0 flex-1">
-              <label htmlFor="spoon-station" className="block text-[10px] font-bold uppercase tracking-wider text-rose-500">Station Spoon</label>
-              <select id="spoon-station" value={station.id} onChange={event => chooseStation(event.target.value)} className="mt-0.5 w-full rounded-lg border border-rose-800/50 bg-slate-950 px-2 py-1.5 text-sm font-black text-rose-200 outline-none focus:border-rose-500">
-                {SPOON_STATIONS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-rose-500">Spoon Radio · Live</p>
+              <p className="truncate text-base font-black text-white">{station.label}</p>
+              <p className="text-[10px] font-bold text-slate-500">{station.detail}</p>
             </div>
             <a href="https://www.spoonradio.com/" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le site Spoon Radio" className="rounded-lg p-2 text-rose-500 hover:bg-rose-900/40"><ExternalLink size={15} /></a>
           </div>
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-rose-700">{station.label} · {station.detail} · en direct</p>
+          <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
+            {SPOON_STATIONS.map(item => <button type="button" key={item.id} onClick={() => chooseStation(item.id)} className={`whitespace-nowrap rounded-full border px-2.5 py-1.5 text-[10px] font-black transition ${station.id === item.id ? 'border-rose-400 bg-rose-500 text-white' : 'border-white/10 bg-white/5 text-slate-400 hover:border-rose-500/50 hover:text-white'}`}>{item.label.replace('Radio ', '').replace('Rock ', '')}</button>)}
+          </div>
           <audio key={station.id} controls preload="none" className="h-10 w-full" aria-label={`Lecteur Spoon ${station.label}`}>
             <source src={station.url} type={station.type} />
             Votre navigateur ne prend pas en charge la lecture audio.
@@ -96,7 +99,15 @@ export function SpoonPlayer() {
         </div>
       ) : (
         <div role="tabpanel">
-          <iframe title="Lecteur Spotify intégré" src={embedUrl} width="100%" height="352" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" className="rounded-xl border-0" />
+          <div className="mb-3 flex items-center gap-3 px-1">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#1ed760] text-black shadow-lg shadow-emerald-950"><Music2 size={22} /></span>
+            <div className="min-w-0 flex-1"><p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-400">Spotify dans Life Hub</p><p className="text-sm font-black text-white">Ta musique, sans quitter l’entraînement</p></div>
+          </div>
+          <iframe key={spotifyFrameKey} title="Lecteur Spotify intégré" src={embedUrl} width="100%" height="352" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" className="rounded-2xl border-0 shadow-xl" />
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <a href="https://open.spotify.com/" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-[10px] font-black text-emerald-300"><LogIn size={13} /> Connecter mon compte</a>
+            <button type="button" onClick={() => setSpotifyFrameKey(key => key + 1)} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-[10px] font-black text-slate-300"><RefreshCw size={13} /> Actualiser</button>
+          </div>
           <form onSubmit={loadSpotify} className="mt-2">
             <label htmlFor="spotify-link" className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Changer le contenu Spotify</label>
             <div className="mt-1 flex gap-1.5">
