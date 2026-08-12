@@ -15,6 +15,7 @@ export interface ProjectNode {
   parentId?: string
   status?: 'idea' | 'active' | 'paused' | 'done'
   notes?: string
+  sourceUrl?: string
   tags?: string[]
   position?: { x: number; y: number }
   color?: string
