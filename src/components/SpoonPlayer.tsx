@@ -1,4 +1,4 @@
-import { ExternalLink, LogIn, Music2, Radio, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronUp, ExternalLink, LogIn, Music2, Radio, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
@@ -7,6 +7,7 @@ type AudioSource = 'spoon' | 'spotify'
 const SOURCE_KEY = 'life_hub_audio_source_v1'
 const STATION_KEY = 'life_hub_spoon_station_v1'
 const SPOTIFY_KEY = 'life_hub_spotify_url_v1'
+const PLAYER_OPEN_KEY = 'life_hub_audio_player_open_v1'
 const DEFAULT_SPOTIFY_URL = 'https://open.spotify.com/playlist/37i9dQZF1DWXRqgorJj26U'
 
 const SPOON_STATIONS = [
@@ -45,6 +46,7 @@ export function SpoonPlayer() {
   const [spotifyDraft, setSpotifyDraft] = useState(spotifyUrl)
   const [spotifyError, setSpotifyError] = useState('')
   const [spotifyFrameKey, setSpotifyFrameKey] = useState(0)
+  const [open, setOpen] = useState(() => savedValue(PLAYER_OPEN_KEY, '1') !== '0')
   const station = SPOON_STATIONS.find(item => item.id === stationId) ?? SPOON_STATIONS[0]
   const embedUrl = spotifyEmbedUrl(spotifyUrl) ?? spotifyEmbedUrl(DEFAULT_SPOTIFY_URL)!
 
@@ -70,10 +72,27 @@ export function SpoonPlayer() {
     try { localStorage.setItem(SPOTIFY_KEY, next) } catch { /* stockage privé indisponible */ }
   }
 
+  function toggleOpen() {
+    setOpen(current => {
+      const next = !current
+      try { localStorage.setItem(PLAYER_OPEN_KEY, next ? '1' : '0') } catch { /* stockage privé indisponible */ }
+      return next
+    })
+  }
+
   return (
-    <section className={`relative overflow-hidden rounded-3xl border p-3 shadow-2xl transition-colors ${source === 'spoon' ? 'border-rose-500/30 bg-gradient-to-br from-rose-950/80 via-slate-950 to-violet-950/60 shadow-rose-950/30' : 'border-emerald-500/30 bg-gradient-to-br from-emerald-950/80 via-slate-950 to-black shadow-emerald-950/30'}`}>
+    <section className={`fixed bottom-[76px] right-2 z-[90] w-[min(360px,calc(100vw-1rem))] overflow-hidden rounded-3xl border shadow-2xl transition-colors lg:bottom-4 lg:right-4 ${source === 'spoon' ? 'border-rose-500/30 bg-gradient-to-br from-rose-950 via-slate-950 to-violet-950 shadow-rose-950/50' : 'border-emerald-500/30 bg-gradient-to-br from-emerald-950 via-slate-950 to-black shadow-emerald-950/50'}`}>
       <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
-      <div className="relative mb-3 grid grid-cols-2 rounded-2xl border border-white/5 bg-black/40 p-1.5" role="tablist" aria-label="Source audio">
+      <button type="button" onClick={toggleOpen} className="relative flex w-full items-center gap-3 px-3 py-2.5 text-left">
+        <span className={`grid h-9 w-9 flex-none place-items-center rounded-xl ${source === 'spoon' ? 'bg-gradient-to-br from-rose-500 to-violet-600 text-white' : 'bg-[#1ed760] text-black'}`}>{source === 'spoon' ? <Radio size={17} /> : <Music2 size={17} />}</span>
+        <span className="min-w-0 flex-1"><span className="block text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Audio en continu</span><span className="block truncate text-sm font-black text-white">{source === 'spoon' ? station.label : 'Spotify'}</span></span>
+        <span className="rounded-lg border border-white/10 bg-white/5 p-1.5 text-slate-400">{open ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</span>
+      </button>
+
+      <div aria-hidden={!open} className={`relative grid transition-[grid-template-rows,opacity] duration-300 ${open ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0'}`}>
+      <div className="min-h-0 overflow-hidden">
+      <div className="max-h-[calc(100vh-150px)] overflow-y-auto px-3 pb-3">
+      <div className="mb-3 grid grid-cols-2 rounded-2xl border border-white/5 bg-black/40 p-1.5" role="tablist" aria-label="Source audio">
         <button type="button" role="tab" aria-selected={source === 'spoon'} onClick={() => chooseSource('spoon')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${source === 'spoon' ? 'bg-gradient-to-r from-rose-600 to-violet-600 text-white shadow-lg shadow-rose-950' : 'text-slate-500 hover:text-white'}`}><Radio size={15} /> Spoon</button>
         <button type="button" role="tab" aria-selected={source === 'spotify'} onClick={() => chooseSource('spotify')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${source === 'spotify' ? 'bg-[#1ed760] text-black shadow-lg shadow-emerald-950' : 'text-slate-500 hover:text-white'}`}><Music2 size={15} /> Spotify</button>
       </div>
@@ -118,6 +137,9 @@ export function SpoonPlayer() {
           </form>
         </div>
       )}
+      </div>
+      </div>
+      </div>
     </section>
   )
 }

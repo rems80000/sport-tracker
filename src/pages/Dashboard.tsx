@@ -6,7 +6,6 @@ import type { SessionStatus, SessionLog, WorkoutSession } from '../types'
 import { getStartOfWeek } from '../utils/storage'
 import { Flame, Zap, PlayCircle } from 'lucide-react'
 import { useMemo } from 'react'
-import { SpoonPlayer } from '../components/SpoonPlayer'
 
 const DAY_ORDER = ['monday', 'tuesday', 'thursday', 'friday']
 const BODYWEIGHT_KG = 70
@@ -227,8 +226,6 @@ export function Dashboard() {
               </div>
             )}
           </div>
-
-          <SpoonPlayer />
 
           {/* Progression semaine */}
           <div className="bg-slate-900/80 border border-slate-700/50 rounded-2xl p-4"
