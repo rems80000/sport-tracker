@@ -16,9 +16,22 @@ export interface ProjectNode {
   status?: 'idea' | 'active' | 'paused' | 'done'
   notes?: string
   sourceUrl?: string
+  startDate?: string
+  dueDate?: string
+  progress?: number
+  tasks?: ProjectTask[]
   tags?: string[]
   position?: { x: number; y: number }
   color?: string
+}
+
+export interface ProjectTask {
+  id: string
+  title: string
+  done: boolean
+  startDate?: string
+  dueDate?: string
+  sourceUrl?: string
 }
 
 export interface ProjectEdge {
