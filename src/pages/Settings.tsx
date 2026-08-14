@@ -2,9 +2,10 @@ import { useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { useDriveSync } from '../store/driveSyncContext'
 import { exportJSON, importJSON } from '../utils/storage'
-import { Download, Upload, Trash2, Timer, Info, Cloud, ExternalLink, LogIn, LogOut, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Download, Upload, Trash2, Info, Cloud, ExternalLink, LogIn, LogOut, RefreshCw, CheckCircle2, AlertTriangle, Smartphone } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { AppTheme } from '../types'
+import { useInstallApp } from '../pwa/installContext'
 
 const THEMES: { value: AppTheme; label: string; sub: string; preview: string }[] = [
   {
@@ -30,6 +31,7 @@ const THEMES: { value: AppTheme; label: string; sub: string; preview: string }[]
 export function Settings() {
   const { state, dispatch } = useStore()
   const drive = useDriveSync()
+  const appInstall = useInstallApp()
   const fileRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [importSuccess, setImportSuccess] = useState(false)
@@ -271,16 +273,24 @@ export function Settings() {
         </div>
       </section>
 
-      {/* PWA tip */}
-      <section className="bg-slate-800/30 border border-slate-700/30 rounded-2xl p-4">
-        <p className="text-slate-400 text-sm font-semibold mb-1 flex items-center gap-2">
-          <Timer size={14} />
-          Installation PWA
+      {/* Application installable */}
+      <section className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+        <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-blue-200">
+          <Smartphone size={15} />
+          Application Android
         </p>
-        <p className="text-slate-500 text-xs">
-          Sur iOS : Safari → Partager → "Sur l'écran d'accueil"<br />
-          Sur Android : Menu Chrome → "Ajouter à l'écran d'accueil"
-        </p>
+        {appInstall.installed ? (
+          <p className="text-xs font-bold text-green-400">✓ Life Hub est déjà installé en mode application.</p>
+        ) : (
+          <>
+            <p className="mb-3 text-xs leading-relaxed text-slate-500">Installation plein écran avec icône, fonctionnement hors ligne et mises à jour automatiques.</p>
+            {appInstall.canInstall ? (
+              <button onClick={() => void appInstall.install()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-xs font-black text-white active:scale-95"><Download size={15} /> Installer Life Hub</button>
+            ) : (
+              <p className="rounded-xl bg-slate-900/70 px-3 py-2 text-center text-[11px] font-bold text-slate-400">{appInstall.isAndroid ? 'Dans Chrome : menu ⋮ → Installer l’application' : 'Sur Android, ouvre Life Hub avec Chrome pour l’installer.'}</p>
+            )}
+          </>
+        )}
       </section>
 
       {/* Delete confirm modal */}

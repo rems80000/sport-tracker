@@ -1,12 +1,14 @@
-import { ArrowRight, Brain, CheckCircle2, Cloud, Dumbbell, Network } from 'lucide-react'
+import { ArrowRight, Brain, CheckCircle2, Cloud, Download, Dumbbell, Network, Smartphone } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { loadPresenceSnapshot, loadProjectsSnapshot } from '../cloud/moduleStorage'
+import { useInstallApp } from '../pwa/installContext'
 import { useDriveSync } from '../store/driveSyncContext'
 import { useStore } from '../store/useStore'
 
 export function HubHome() {
   const { state } = useStore()
   const drive = useDriveSync()
+  const appInstall = useInstallApp()
   const presence = loadPresenceSnapshot().data
   const projects = loadProjectsSnapshot().data
   const lastSport = state.sessions.filter(session => session.status === 'done' || session.status === 'done_short').sort((a, b) => Date.parse(b.date) - Date.parse(a.date))[0]
@@ -17,6 +19,20 @@ export function HubHome() {
         <p className="text-xs font-bold uppercase tracking-[0.25em] text-indigo-300">Remy Life Hub</p>
         <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-5xl">Votre espace, sans dispersion.</h1>
         <p className="mt-3 max-w-2xl text-sm text-slate-400 sm:text-base">Bouger, respirer et faire avancer vos projets depuis une seule application.</p>
+        {!appInstall.installed && (
+          <section className="mt-6 flex flex-col gap-4 rounded-3xl border border-blue-400/25 bg-gradient-to-r from-blue-600/20 via-indigo-600/15 to-slate-900/70 p-4 shadow-2xl shadow-blue-950/20 sm:flex-row sm:items-center sm:p-5">
+            <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-blue-500 text-white shadow-lg shadow-blue-950/50"><Smartphone size={24} /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-black text-white">Life Hub sur Android</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">Icône sur l’écran d’accueil, plein écran, mises à jour automatiques et données Google Drive conservées.</p>
+            </div>
+            {appInstall.canInstall ? (
+              <button onClick={() => void appInstall.install()} className="flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-3 text-xs font-black text-white active:scale-95"><Download size={16} /> Installer l’application</button>
+            ) : (
+              <p className="rounded-xl bg-slate-950/60 px-4 py-3 text-center text-[11px] font-bold text-blue-200">{appInstall.isAndroid ? 'Chrome ⋮ → Installer l’application' : 'Ouvre cette page dans Chrome sur Android'}</p>
+            )}
+          </section>
+        )}
         <div className="mt-7 grid gap-4 md:grid-cols-3">
           <ModuleCard to="/" icon={Dumbbell} title="TRAINHARD" eyebrow="Corps" color="indigo" description={lastSport ? `Dernière séance : ${new Date(lastSport.date).toLocaleDateString('fr-FR')}` : 'Votre programme sportif maison'} metric={`${state.sessions.length} séances enregistrées`} />
           <ModuleCard to="/presence" icon={Brain} title="Présent" eyebrow="Esprit" color="emerald" description="Méditations guidées, respiration et ambiances" metric={`${presence.history.length} séances méditées`} />

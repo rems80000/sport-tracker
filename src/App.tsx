@@ -23,6 +23,7 @@ import { HubHome } from './pages/HubHome'
 import { Projects } from './pages/Projects'
 import { PresenceApp } from './modules/presence/PresenceApp'
 import { SpoonPlayer } from './components/SpoonPlayer'
+import { InstallProvider } from './pwa/install'
 
 const FR_DAYS_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 const FR_MONTHS_FULL = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
@@ -183,9 +184,11 @@ function App() {
     <StoreContext.Provider value={store}>
       <DriveSyncProvider>
         <TimerProvider>
-          <BrowserRouter>
-            <AppInner />
-          </BrowserRouter>
+          <InstallProvider>
+            <BrowserRouter>
+              <AppInner />
+            </BrowserRouter>
+          </InstallProvider>
         </TimerProvider>
       </DriveSyncProvider>
     </StoreContext.Provider>
