@@ -4,7 +4,7 @@ import { PROGRAM, buildSessionById } from '../data/program'
 import { SessionCard } from '../components/SessionCard'
 import type { SessionStatus, SessionLog, WorkoutSession } from '../types'
 import { getStartOfWeek } from '../utils/storage'
-import { Flame, Zap, PlayCircle } from 'lucide-react'
+import { ArrowRight, CalendarDays, Flame, ShieldCheck, Sparkles, Zap, PlayCircle } from 'lucide-react'
 import { useMemo } from 'react'
 
 const DAY_ORDER = ['monday', 'tuesday', 'thursday', 'friday']
@@ -142,12 +142,44 @@ export function Dashboard() {
     return dayMap[s.day] === today.getDay()
   })
 
+  const suggestedSession = todayProgram.find(session => getSessionStatus(session.id, weekLogs, state.activeSessionLog) === 'todo')
+    ?? effectiveProgram.find(session => session.day !== 'friday' && getSessionStatus(session.id, weekLogs, state.activeSessionLog) === 'todo')
+    ?? effectiveProgram.find(session => session.day === 'friday')
+    ?? effectiveProgram[0]
+  const suggestedSets = suggestedSession?.exercises.reduce((total, exercise) => total + exercise.sets.length, 0) ?? 0
+  const suggestedMinutes = suggestedSession
+    ? Math.max(10, Math.round(suggestedSession.exercises.reduce((total, exercise) => total + exercise.sets.reduce((sum, set) => sum + (set.targetDuration ?? 35) + set.restSeconds, 0), 0) / 60))
+    : 10
+
   const progressPct = totalScheduled > 0 ? (completedThisWeek / totalScheduled) * 100 : 0
   const totalDone = state.sessions.filter(s => s.status === 'done' || s.status === 'done_short').length
   const hasTonnage = weekTonnageKg > 0 || monthTonnageKg > 0
 
   return (
     <div className="pb-[80px] lg:pb-6 pt-4 px-4 lg:px-6 max-w-[1400px] mx-auto w-full">
+
+      {/* ── Action principale ──────────────────────────────────────────────── */}
+      {suggestedSession && !state.activeSessionLog && (
+        <section className="relative mb-5 overflow-hidden rounded-[28px] border border-indigo-400/25 bg-[radial-gradient(circle_at_85%_15%,rgba(244,63,94,0.22),transparent_32%),linear-gradient(135deg,rgba(79,70,229,0.32),rgba(15,23,42,0.96)_58%)] p-5 shadow-2xl shadow-indigo-950/30 sm:p-7">
+          <div className="absolute -right-10 -top-12 h-44 w-44 rounded-full border-[24px] border-white/[0.025]" />
+          <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div>
+              <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-indigo-300"><Sparkles size={14} /> Prochaine victoire</p>
+              <p className="mt-4 text-xs font-black uppercase tracking-widest text-slate-500">{suggestedSession.dayLabel}</p>
+              <h1 className="mt-1 max-w-3xl text-2xl font-black leading-tight text-white sm:text-4xl">{suggestedSession.name.replace(/^Séance \d+ — /, '')}</h1>
+              <p className="mt-2 text-sm text-slate-400">{suggestedSession.shortDescription}</p>
+              <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold">
+                <span className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-slate-300"><CalendarDays size={13} /> ≈ {suggestedMinutes} min</span>
+                <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-slate-300">{suggestedSession.exercises.length} exercices · {suggestedSets} séries</span>
+                <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-emerald-300"><ShieldCheck size={13} /> 10 min = réussite</span>
+              </div>
+            </div>
+            <button onClick={() => handleStart(suggestedSession.id)} className="flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-white px-6 py-4 text-sm font-black text-slate-950 shadow-xl shadow-black/20 transition-transform active:scale-95">
+              Commencer <ArrowRight size={19} />
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* ── Session en cours ────────────────────────────────────────────────── */}
       {state.activeSessionLog && (

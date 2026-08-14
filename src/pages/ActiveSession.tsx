@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { buildSessionById } from '../data/program'
@@ -9,7 +9,7 @@ import { formatDuration } from '../utils/storage'
 import { resolveAssetUrl } from '../utils/assets'
 import {
   CheckCircle2, Circle, ChevronDown, ChevronUp,
-  ArrowLeft, X, Flag, Plus, Minus, Pencil, ImageOff, RotateCcw,
+  ArrowLeft, X, Flag, Plus, Minus, Pencil, ImageOff, RotateCcw, Clock3, ShieldCheck,
 } from 'lucide-react'
 
 function generateId(): string {
@@ -416,13 +416,14 @@ function SetRow({ setIndex, effectiveSet, effectiveWeight, exercise, logged, onL
 // ─── ExerciseBlock ─────────────────────────────────────────────────────────────
 interface ExerciseBlockProps {
   exercise: Exercise; logs: LoggedSet[]; override?: ExerciseSessionOverride; lastWeight?: number
+  exerciseIndex: number; totalExercises: number
   onLog: (exerciseId: string, setIndex: number, data: Omit<LoggedSet, 'exerciseId' | 'setIndex' | 'timestamp'>) => void
   onStartTimer: (seconds: number) => void
   onOverride: (exerciseId: string, override: ExerciseSessionOverride) => void
   className?: string
 }
 
-function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTimer, onOverride, className = '' }: ExerciseBlockProps) {
+function ExerciseBlock({ exercise, logs, override, lastWeight, exerciseIndex, totalExercises, onLog, onStartTimer, onOverride, className = '' }: ExerciseBlockProps) {
   const [open, setOpen] = useState(true)
   const [showDetails, setShowDetails] = useState(false)
   const isCardio = exercise.type === 'cardio' || exercise.category === 'cardio'
@@ -469,11 +470,12 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
     : 'border-indigo-500/35 bg-slate-800/40 shadow-[0_2px_16px_rgba(0,0,0,0.35)]'
 
   return (
-    <div className={`rounded-xl border overflow-hidden transition-colors ${borderClass} ${className}`}>
+    <div className={`overflow-hidden rounded-2xl border transition-all ${borderClass} ${allDone ? 'opacity-80' : ''} ${className}`}>
       {/* Cardio : layout sur PC — image + nom + params + actions */}
       {isCardio && (
         <div className="hidden lg:block px-3 py-2.5">
           <div className="flex items-center gap-3">
+            <span className="grid h-9 min-w-10 flex-none place-items-center rounded-xl bg-indigo-500/15 px-1 text-[10px] font-black text-indigo-300">{exerciseIndex + 1}/{totalExercises}</span>
             <ExerciseImage exercise={exercise} size="sm" className="flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-white font-bold text-base leading-tight">{exercise.name}</p>
@@ -507,6 +509,7 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
 
       {/* Mobile header (tous) + PC header pour non-cardio */}
       <div className={`flex items-center gap-2.5 px-3 py-2.5 ${isCardio ? 'lg:hidden' : ''}`}>
+        <span className="grid h-9 min-w-10 flex-none place-items-center rounded-xl bg-indigo-500/15 px-1 text-[10px] font-black text-indigo-300">{exerciseIndex + 1}/{totalExercises}</span>
         <PostureMiniature exercise={exercise} />
         <button onClick={() => setOpen(o => !o)} className="flex-1 min-w-0 text-left">
           <p className="text-white font-bold text-lg leading-tight">{exercise.name}</p>
@@ -520,6 +523,7 @@ function ExerciseBlock({ exercise, logs, override, lastWeight, onLog, onStartTim
           </button>
         </div>
       </div>
+      <div className="h-1 bg-slate-900"><div className={`h-full transition-all duration-500 ${allDone ? 'bg-emerald-400' : 'bg-indigo-500'}`} style={{ width: `${total ? (completedCount / total) * 100 : 0}%` }} /></div>
 
       {/* Corps de la carte */}
       {open && (
@@ -631,7 +635,13 @@ export function ActiveSession() {
   const [showFinish, setShowFinish] = useState(false)
   const [feeling, setFeeling] = useState<Feeling>('normal')
   const [sessionComment, setSessionComment] = useState('')
-  const startTimeRef = useRef(new Date().toISOString())
+  const [clockNow, setClockNow] = useState(() => Date.now())
+  const [initialStartTime] = useState(() => new Date().toISOString())
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClockNow(Date.now()), 1000)
+    return () => window.clearInterval(interval)
+  }, [])
 
   const lastWeightByExercise = useMemo(() => {
     const result: Record<string, number> = {}
@@ -650,10 +660,10 @@ export function ActiveSession() {
     if (!state.activeSessionLog || state.activeSessionLog.sessionId !== session.id) {
       dispatch({
         type: 'START_SESSION',
-        payload: { id: generateId(), sessionId: session.id, date: new Date().toISOString().split('T')[0], startTime: startTimeRef.current, status: 'in_progress', sets: [] },
+        payload: { id: generateId(), sessionId: session.id, date: new Date().toISOString().split('T')[0], startTime: initialStartTime, status: 'in_progress', sets: [] },
       })
     }
-  }, [session?.id])
+  }, [dispatch, initialStartTime, session, state.activeSessionLog])
 
   if (!session) return (
     <div className="flex flex-col items-center justify-center h-full p-8 gap-4">
@@ -667,6 +677,9 @@ export function ActiveSession() {
   const totalSets = session.exercises.reduce((acc, ex) => acc + (overrides[ex.id]?.numSets ?? ex.sets.length), 0)
   const completedSets = logs.filter(l => l.completed).length
   const progress = totalSets > 0 ? completedSets / totalSets : 0
+  const sessionStartTime = state.activeSessionLog?.startTime ?? initialStartTime
+  const elapsedSeconds = Math.max(0, Math.floor((clockNow - new Date(sessionStartTime).getTime()) / 1000))
+  const shortSessionReady = elapsedSeconds >= 10 * 60
 
   const handleLog = (exerciseId: string, setIndex: number, data: Omit<LoggedSet, 'exerciseId' | 'setIndex' | 'timestamp'>) => {
     dispatch({ type: 'LOG_SET', payload: { exerciseId, setIndex, timestamp: new Date().toISOString(), ...data } })
@@ -675,45 +688,50 @@ export function ActiveSession() {
     dispatch({ type: 'SET_EXERCISE_OVERRIDE', payload: { exerciseId, override } })
   }
   const handleFinish = (isShort = false) => {
-    const totalMinutes = Math.round((Date.now() - new Date(startTimeRef.current).getTime()) / 60000)
+    const totalMinutes = Math.max(1, Math.round((Date.now() - new Date(sessionStartTime).getTime()) / 60000))
     dispatch({ type: 'COMPLETE_SESSION', payload: { status: isShort ? 'done_short' : 'done', feeling, comment: sessionComment, totalMinutes } })
     navigate('/')
   }
   const handleCancel = () => { dispatch({ type: 'CANCEL_SESSION' }); navigate('/') }
 
   return (
-    <div className="flex flex-col pb-[80px] lg:pb-8 max-w-[1600px] mx-auto w-full px-0 lg:px-8">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col pb-28 lg:pb-8 lg:px-8">
       {/* Sticky header */}
-      <div className="sticky top-0 z-30 bg-slate-950/97 backdrop-blur border-b border-slate-700/50 px-3 pt-2.5 pb-2">
-        <div className="flex items-center gap-2 mb-1.5">
-          <button onClick={() => navigate(-1)} className="p-1.5 rounded-xl text-slate-400 active:bg-slate-800 transition-colors flex-shrink-0">
+      <div className="sticky top-0 z-30 border-b border-indigo-400/20 bg-[radial-gradient(circle_at_85%_0%,rgba(244,63,94,0.18),transparent_35%),rgba(2,6,23,0.97)] px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] shadow-2xl backdrop-blur lg:rounded-b-3xl lg:px-5">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="grid h-10 w-10 flex-none place-items-center rounded-xl border border-white/5 bg-white/5 text-slate-400 active:bg-slate-800">
             <ArrowLeft size={18} />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-slate-500">{session.dayLabel}</p>
-            <h2 className="text-base font-bold text-white leading-tight truncate">{session.name}</h2>
+            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-300">{session.dayLabel} · séance active</p>
+            <h2 className="truncate text-base font-black leading-tight text-white sm:text-lg">{session.name}</h2>
           </div>
+          <div className="hidden text-right sm:block"><p className="flex items-center justify-end gap-1 text-[9px] font-black uppercase tracking-wider text-slate-500"><Clock3 size={11} /> Temps</p><p className="text-xl font-black tabular-nums text-white">{formatDuration(elapsedSeconds)}</p></div>
           <button onClick={() => setShowFinish(true)}
-            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-600 text-white font-bold text-sm active:scale-95 transition-transform">
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-black text-slate-950 transition-transform active:scale-95">
             <Flag size={13} /> Terminer
           </button>
-          <button onClick={handleCancel} className="p-1.5 rounded-xl text-slate-600 active:bg-slate-800 transition-colors flex-shrink-0">
+          <button onClick={handleCancel} className="grid h-9 w-9 flex-none place-items-center rounded-xl text-slate-600 active:bg-slate-800">
             <X size={16} />
           </button>
         </div>
-        <div className="h-1.5 bg-slate-800/80 rounded-full">
-          <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${progress * 100}%` }} />
+        <div className="mt-3 flex items-center gap-3">
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800/80">
+            <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 to-rose-500 transition-all duration-500" style={{ width: `${progress * 100}%` }} />
+          </div>
+          <span className="text-xs font-black tabular-nums text-white">{completedSets}/{totalSets}</span>
         </div>
-        <p className="text-xs text-slate-500 text-center mt-0.5">{completedSets} / {totalSets} séries</p>
+        <div className="mt-2 flex items-center justify-between gap-3 text-[10px] font-bold sm:hidden"><span className="flex items-center gap-1 text-slate-500"><Clock3 size={11} /> {formatDuration(elapsedSeconds)}</span><span className={shortSessionReady ? 'text-emerald-400' : 'text-slate-600'}>{shortSessionReady ? '✓ 10 min : séance réussie' : `Réussite dans ${formatDuration(600 - elapsedSeconds)}`}</span></div>
       </div>
 
       {/* Grille exercices */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 px-3 pt-3">
-        {session.exercises.map(ex => {
+        {session.exercises.map((ex, exerciseIndex) => {
           const isCardio = ex.type === 'cardio' || ex.category === 'cardio'
           return (
             <ExerciseBlock key={ex.id} exercise={ex} logs={logs} override={overrides[ex.id]}
               lastWeight={lastWeightByExercise[ex.id]}
+              exerciseIndex={exerciseIndex} totalExercises={session.exercises.length}
               onLog={handleLog} onStartTimer={startTimer} onOverride={handleOverride}
               className={isCardio ? 'lg:col-span-2' : ''} />
           )
@@ -730,12 +748,10 @@ export function ActiveSession() {
 
       {/* Actions secondaires */}
       <div className="px-3 pb-3 flex flex-col gap-2">
-        {session.hasShortVersion && (
-          <button onClick={() => handleFinish(true)}
-            className="w-full py-3 rounded-2xl bg-teal-600/70 text-white font-semibold text-sm active:scale-95 transition-transform">
-            Valider séance courte (≥ 10 min)
-          </button>
-        )}
+        <button onClick={() => handleFinish(true)} disabled={!shortSessionReady}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-teal-500/25 bg-teal-500/10 py-3 text-sm font-bold text-teal-300 transition-transform active:scale-95 disabled:border-slate-700/30 disabled:bg-slate-800/40 disabled:text-slate-600 disabled:active:scale-100">
+          <ShieldCheck size={15} /> {shortSessionReady ? 'Valider comme séance courte réussie' : `Séance courte validable dans ${formatDuration(600 - elapsedSeconds)}`}
+        </button>
         <button onClick={handleCancel}
           className="w-full py-3 rounded-2xl bg-slate-800/60 text-slate-400 font-semibold text-sm active:scale-95 transition-transform flex items-center justify-center gap-2">
           <X size={14} /> Abandonner

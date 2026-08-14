@@ -137,6 +137,7 @@ function AppInner() {
   const { state } = useStore()
   const location = useLocation()
   const isHubModule = location.pathname === '/hub' || location.pathname.startsWith('/presence') || location.pathname.startsWith('/projets')
+  const isActiveWorkout = /^\/seance\/[^/]+/.test(location.pathname)
 
   return (
     <>
@@ -153,11 +154,11 @@ function AppInner() {
         </div>
       ) : (
         <div className={`app-root flex flex-col min-h-dvh theme-${state.theme}`}>
-          <ClockBar />
-          <HubSwitcher />
+          {!isActiveWorkout && <ClockBar />}
+          {!isActiveWorkout && <HubSwitcher />}
           <div className="flex flex-1 overflow-hidden">
-            <Sidebar />
-            <main className="flex-1 overflow-y-auto lg:pl-6">
+            {!isActiveWorkout && <Sidebar />}
+            <main className={`flex-1 overflow-y-auto ${isActiveWorkout ? '' : 'lg:pl-6'}`}>
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/programme" element={<Program />} />
@@ -170,7 +171,7 @@ function AppInner() {
               </Routes>
             </main>
           </div>
-          <Navigation />
+          {!isActiveWorkout && <Navigation />}
         </div>
       )}
       <SpoonPlayer />
