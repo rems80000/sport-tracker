@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Android / TWA signing material and generated outputs
+android-twa/android.keystore
+android-twa/*.jks
+android-twa/local.properties
+android-twa/.gradle/
+android-twa/app/build/
+android-twa/build/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
