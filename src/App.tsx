@@ -140,23 +140,21 @@ function AppInner() {
   const isActiveWorkout = /^\/seance\/[^/]+/.test(location.pathname)
 
   return (
-    <>
+    <div className={`app-root flex min-h-dvh flex-col ${isHubModule ? 'bg-slate-950' : `theme-${state.theme}`}`}>
+      {!isHubModule && !isActiveWorkout && <ClockBar />}
+      <HubSwitcher />
+      <SpoonPlayer />
       {isHubModule ? (
-        <div className="app-root flex min-h-dvh flex-col bg-slate-950">
-          <HubSwitcher />
-          <main className="relative min-h-0 flex-1 overflow-auto">
-            <Routes>
-              <Route path="/hub" element={<HubHome />} />
-              <Route path="/presence/*" element={<PresenceApp />} />
-              <Route path="/projets/*" element={<Projects />} />
-            </Routes>
-          </main>
-        </div>
+        <main className="relative min-h-0 flex-1 overflow-auto">
+          <Routes>
+            <Route path="/hub" element={<HubHome />} />
+            <Route path="/presence/*" element={<PresenceApp />} />
+            <Route path="/projets/*" element={<Projects />} />
+          </Routes>
+        </main>
       ) : (
-        <div className={`app-root flex flex-col min-h-dvh theme-${state.theme}`}>
-          {!isActiveWorkout && <ClockBar />}
-          {!isActiveWorkout && <HubSwitcher />}
-          <div className="flex flex-1 overflow-hidden">
+        <>
+          <div className="flex min-h-0 flex-1 overflow-hidden">
             {!isActiveWorkout && <Sidebar />}
             <main className={`flex-1 overflow-y-auto ${isActiveWorkout ? '' : 'lg:pl-6'}`}>
               <Routes>
@@ -172,10 +170,9 @@ function AppInner() {
             </main>
           </div>
           {!isActiveWorkout && <Navigation />}
-        </div>
+        </>
       )}
-      <SpoonPlayer />
-    </>
+    </div>
   )
 }
 
