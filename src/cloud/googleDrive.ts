@@ -128,7 +128,8 @@ export async function requestDriveAccess(clientId: string): Promise<string> {
         reject(new Error('Impossible d’ouvrir la connexion Google.'))
       },
     })
-    client.requestAccessToken({ prompt: 'consent' })
+    // Google affiche le consentement uniquement lorsqu'un nouveau droit est nécessaire.
+    client.requestAccessToken({ prompt: '' })
   })
 }
 
