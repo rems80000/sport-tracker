@@ -1,7 +1,8 @@
-import { Archive, CalendarRange, CheckSquare2, Cloud, ExternalLink, FilePlus2, GitBranch, LayoutList, Link2, ListTodo, LoaderCircle, Network, Orbit, Plus, RefreshCw, Save, Square, Trash2, Upload, X } from 'lucide-react'
+import { Archive, CalendarRange, CheckSquare2, Cloud, ExternalLink, FilePlus2, FileText, GitBranch, LayoutList, Link2, ListTodo, LoaderCircle, Network, Orbit, Plus, RefreshCw, Save, Square, Trash2, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { ProjectNode, ProjectsData, ProjectTask } from '../cloud/lifeHub'
+import type { GoogleDocumentSummary } from '../cloud/googleDrive'
 import { LIFE_HUB_PROJECTS_IMPORTED_EVENT, loadProjectsSnapshot, saveProjectsData } from '../cloud/moduleStorage'
 import { useDriveSync } from '../store/driveSyncContext'
 
@@ -217,6 +218,8 @@ export function Projects() {
   const [quickDueDate, setQuickDueDate] = useState('')
   const [cloudMessage, setCloudMessage] = useState('')
   const [cloudBusy, setCloudBusy] = useState<string | null>(null)
+  const [driveDocs, setDriveDocs] = useState<GoogleDocumentSummary[]>([])
+  const [docsOpen, setDocsOpen] = useState(false)
   const dragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const importRef = useRef<HTMLInputElement>(null)
@@ -441,6 +444,71 @@ export function Projects() {
     }
   }
 
+  async function openGoogleDocs() {
+    try {
+      setCloudBusy('docs:list')
+      setCloudMessage('')
+      const documents = await drive.listProjectDocuments()
+      setDriveDocs(documents)
+      setDocsOpen(true)
+      if (!documents.length) setCloudMessage('Aucun Google Doc accessible avec ce compte.')
+    } catch (caught) {
+      setCloudMessage(caught instanceof Error ? caught.message : 'Lecture des Google Docs impossible.')
+    } finally {
+      setCloudBusy(null)
+    }
+  }
+
+  async function importGoogleDoc(document: GoogleDocumentSummary) {
+    try {
+      setCloudBusy(`docs:${document.id}`)
+      setCloudMessage('')
+      const content = (await drive.readProjectDocument(document.id)).trim()
+      const sourceUrl = document.webViewLink ?? `https://docs.google.com/document/d/${encodeURIComponent(document.id)}/edit`
+      const existing = projectsRef.current.nodes.find(node => node.googleDriveFileId === document.id || node.sourceUrl?.includes(document.id))
+      let next: ProjectsData
+      if (existing) {
+        next = {
+          ...projectsRef.current,
+          nodes: projectsRef.current.nodes.map(node => node.id === existing.id ? {
+            ...node,
+            title: document.name || node.title,
+            notes: content || 'Ce Google Doc ne contient pas encore de texte.',
+            sourceUrl,
+            googleDriveFileId: document.id,
+            sourceModifiedTime: document.modifiedTime,
+          } : node),
+        }
+        setSelectedId(existing.id)
+        setCloudMessage(`« ${document.name} » a été actualisé depuis Google Docs.`)
+      } else {
+        const id = crypto.randomUUID()
+        const index = projectsRef.current.nodes.length
+        const node: ProjectNode = {
+          id,
+          title: document.name || 'Google Doc sans titre',
+          notes: content || 'Ce Google Doc ne contient pas encore de texte.',
+          sourceUrl,
+          googleDriveFileId: document.id,
+          sourceModifiedTime: document.modifiedTime,
+          status: 'idea',
+          tags: ['google-doc'],
+          color: '#4285f4',
+          position: { x: 70 + (index % 5) * 225, y: 80 + (Math.floor(index / 5) % 5) * 125 },
+        }
+        next = { ...projectsRef.current, nodes: [...projectsRef.current.nodes, node] }
+        setSelectedId(id)
+        setCloudMessage(`« ${document.name} » importé avec son contenu.`)
+      }
+      persist(next)
+      setDocsOpen(false)
+    } catch (caught) {
+      setCloudMessage(caught instanceof Error ? caught.message : 'Import du contenu Google Docs impossible.')
+    } finally {
+      setCloudBusy(null)
+    }
+  }
+
   function startDrag(event: ReactPointerEvent, node: ProjectNode) {
     const canvas = canvasRef.current?.getBoundingClientRect()
     if (!canvas) return
@@ -488,6 +556,7 @@ export function Projects() {
         {viewMode === 'map' && <button onClick={applyRadialLayout} className="flex items-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-xs font-black text-violet-300"><Orbit size={16} /> Disposition en étoile</button>}
         <input ref={importRef} type="file" accept="application/json,.json" className="hidden" onChange={importProjects} />
         <button onClick={() => importRef.current?.click()} className="flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-black text-amber-300"><Upload size={16} /> Importer</button>
+        <button onClick={() => void openGoogleDocs()} disabled={cloudBusy === 'docs:list'} className="flex items-center gap-2 rounded-xl border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs font-black text-blue-300 disabled:opacity-60">{cloudBusy === 'docs:list' ? <LoaderCircle className="animate-spin" size={16} /> : <FileText size={16} />} Google Docs</button>
         <button onClick={() => addNode()} className="flex items-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-xs font-black text-slate-950"><Plus size={16} /> Nouvelle idée</button>
       </header>
 
@@ -590,6 +659,13 @@ export function Projects() {
           <button onClick={deleteNode} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 px-3 py-2 text-xs font-bold text-red-400"><Trash2 size={14} /> Supprimer cette carte</button>
           {selected.status === 'done' && <p className="mt-3 flex items-center gap-2 text-[10px] text-emerald-400"><Archive size={13} /> Cette carte apparaît dans les archives de la vue Liste.</p>}
         </aside>}
+
+        {docsOpen && <div className="fixed inset-0 z-[120] grid place-items-center bg-black/75 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Importer un Google Doc">
+          <section className="flex max-h-[82vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-blue-500/30 bg-slate-950 shadow-2xl">
+            <header className="flex items-start gap-3 border-b border-slate-800 p-4"><span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-500/15 text-blue-300"><FileText size={20} /></span><div className="min-w-0 flex-1"><h2 className="font-black text-white">Importer le contenu d’un Google Doc</h2><p className="mt-1 text-xs text-slate-500">Le texte devient le détail de la carte. Un nouvel import actualise la même carte.</p></div><button onClick={() => setDocsOpen(false)} className="rounded-xl p-2 text-slate-500 hover:bg-slate-800"><X size={18} /></button></header>
+            <div className="divide-y divide-slate-800 overflow-y-auto">{driveDocs.map(document => <button key={document.id} onClick={() => void importGoogleDoc(document)} disabled={cloudBusy === `docs:${document.id}`} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-blue-500/10 disabled:opacity-60"><FileText className="flex-none text-blue-400" size={18} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-white">{document.name}</span><span className="block text-[10px] text-slate-600">{document.modifiedTime ? `Modifié le ${new Date(document.modifiedTime).toLocaleDateString('fr-FR')}` : 'Google Docs'}</span></span>{cloudBusy === `docs:${document.id}` ? <LoaderCircle className="animate-spin text-blue-300" size={16} /> : <Plus className="text-slate-600" size={16} />}</button>)}</div>
+          </section>
+        </div>}
       </div>
     </div>
   )
