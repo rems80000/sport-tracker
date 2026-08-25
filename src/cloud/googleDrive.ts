@@ -2,6 +2,7 @@ import { LIFE_HUB_FILE_NAME } from './lifeHub'
 
 const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive.readonly',
   'https://www.googleapis.com/auth/tasks',
 ].join(' ')
 const GOOGLE_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
@@ -48,6 +49,13 @@ export interface DriveFile {
 export interface DriveRevision {
   id: string
   modifiedTime?: string
+}
+
+export interface GoogleDocumentSummary {
+  id: string
+  name: string
+  modifiedTime?: string
+  webViewLink?: string
 }
 
 export class DriveRequestError extends Error {
@@ -223,6 +231,26 @@ export async function createGoogleDocument(accessToken: string, title: string): 
     },
   )
   return response.json() as Promise<DriveFile>
+}
+
+export async function listGoogleDocuments(accessToken: string): Promise<GoogleDocumentSummary[]> {
+  const query = encodeURIComponent("mimeType = 'application/vnd.google-apps.document' and trashed = false")
+  const fields = encodeURIComponent('files(id,name,modifiedTime,webViewLink)')
+  const response = await driveFetch(
+    accessToken,
+    `https://www.googleapis.com/drive/v3/files?q=${query}&spaces=drive&orderBy=modifiedTime%20desc&pageSize=200&fields=${fields}`,
+  )
+  const data = await response.json() as { files?: GoogleDocumentSummary[] }
+  return data.files ?? []
+}
+
+export async function exportGoogleDocumentText(accessToken: string, fileId: string): Promise<string> {
+  const mimeType = encodeURIComponent('text/plain')
+  const response = await driveFetch(
+    accessToken,
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${mimeType}`,
+  )
+  return response.text()
 }
 
 export function revokeDriveAccess(accessToken: string) {
