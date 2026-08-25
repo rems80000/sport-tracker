@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { createLifeHubDocument, parseLifeHubDocument } from '../cloud/lifeHub'
 import type { LifeHubDocument } from '../cloud/lifeHub'
 import {
+  createGoogleDocument,
   createJsonFile,
   downloadJson,
   downloadJsonRevision,
@@ -14,6 +15,8 @@ import {
   revokeDriveAccess,
   updateJsonFile,
 } from '../cloud/googleDrive'
+import { upsertGoogleTask } from '../cloud/googleTasks'
+import type { GoogleTaskInput, GoogleTaskResult } from '../cloud/googleTasks'
 import { getLocalUpdatedAt, mergeAppStates, setLocalUpdatedAt } from '../utils/storage'
 import type { AppState } from '../types'
 import { useStore } from './useStore'
@@ -38,6 +41,8 @@ interface DriveSyncContextValue {
   connect: () => Promise<void>
   disconnect: () => void
   syncNow: () => Promise<void>
+  createProjectDocument: (title: string) => Promise<string>
+  syncProjectTask: (task: GoogleTaskInput) => Promise<GoogleTaskResult>
 }
 
 const DriveSyncContext = createContext<DriveSyncContextValue | null>(null)
@@ -94,6 +99,7 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
   const readyRef = useRef(false)
   const applyingRemoteRef = useRef(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastPullAtRef = useRef(0)
   const lastStateJsonRef = useRef(JSON.stringify(state))
   const configured = Boolean(GOOGLE_CLIENT_ID)
   const [status, setStatus] = useState<SyncStatus>(configured ? 'disconnected' : 'unconfigured')
@@ -242,7 +248,8 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
       return
     }
     try {
-      await pushState()
+      lastPullAtRef.current = Date.now()
+      await initialSync(tokenRef.current)
     } catch (caught) {
       if (isDriveAuthError(caught)) {
         tokenRef.current = null
@@ -253,7 +260,24 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
         ? 'Connexion Google expirée. Cliquez sur « Reconnecter Google », puis synchronisez.'
         : caught instanceof Error ? caught.message : 'Échec de la synchronisation')
     }
-  }, [connect, pushState])
+  }, [connect, initialSync])
+
+  const requireGoogleToken = useCallback(async () => {
+    if (!tokenRef.current) await connect()
+    if (!tokenRef.current) throw new Error('Connectez Google pour continuer.')
+    return tokenRef.current
+  }, [connect])
+
+  const createProjectDocument = useCallback(async (title: string) => {
+    const token = await requireGoogleToken()
+    const file = await createGoogleDocument(token, title)
+    return `https://docs.google.com/document/d/${encodeURIComponent(file.id)}/edit`
+  }, [requireGoogleToken])
+
+  const syncProjectTask = useCallback(async (task: GoogleTaskInput) => {
+    const token = await requireGoogleToken()
+    return upsertGoogleTask(token, task)
+  }, [requireGoogleToken])
 
   useEffect(() => {
     const currentJson = JSON.stringify(state)
@@ -277,6 +301,22 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(LIFE_HUB_MODULE_UPDATED_EVENT, handleModuleUpdate)
   }, [syncNow])
 
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible' || !tokenRef.current || !readyRef.current) return
+      if (Date.now() - lastPullAtRef.current < 30_000) return
+      void syncNow()
+    }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    const interval = window.setInterval(refresh, 90_000)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+      window.clearInterval(interval)
+    }
+  }, [syncNow])
+
   return (
     <DriveSyncContext.Provider value={{
       status,
@@ -287,6 +327,8 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
       connect,
       disconnect,
       syncNow,
+      createProjectDocument,
+      syncProjectTask,
     }}>
       {children}
     </DriveSyncContext.Provider>

@@ -1,8 +1,9 @@
-import { Archive, CalendarRange, CheckSquare2, ExternalLink, GitBranch, LayoutList, Link2, Network, Orbit, Plus, Save, Square, Trash2, Upload, X } from 'lucide-react'
+import { Archive, CalendarRange, CheckSquare2, Cloud, ExternalLink, FilePlus2, GitBranch, LayoutList, Link2, ListTodo, LoaderCircle, Network, Orbit, Plus, RefreshCw, Save, Square, Trash2, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { ProjectNode, ProjectsData, ProjectTask } from '../cloud/lifeHub'
 import { LIFE_HUB_PROJECTS_IMPORTED_EVENT, loadProjectsSnapshot, saveProjectsData } from '../cloud/moduleStorage'
+import { useDriveSync } from '../store/driveSyncContext'
 
 type ViewMode = 'map' | 'list' | 'gantt'
 type ProjectStatus = NonNullable<ProjectNode['status']>
@@ -204,10 +205,18 @@ function GanttView({ projects, onSelectNode, onToggleTask, onToggleNode }: {
 }
 
 export function Projects() {
+  const drive = useDriveSync()
   const [projects, setProjects] = useState<ProjectsData>(normalizedProjects)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>(initialView)
   const [importMessage, setImportMessage] = useState('')
+  const [captureMode, setCaptureMode] = useState<'note' | 'task'>('note')
+  const [quickTitle, setQuickTitle] = useState('')
+  const [quickNotes, setQuickNotes] = useState('')
+  const [quickProjectId, setQuickProjectId] = useState('')
+  const [quickDueDate, setQuickDueDate] = useState('')
+  const [cloudMessage, setCloudMessage] = useState('')
+  const [cloudBusy, setCloudBusy] = useState<string | null>(null)
   const dragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const importRef = useRef<HTMLInputElement>(null)
@@ -271,6 +280,39 @@ export function Projects() {
     const edge = parent ? [{ id: crypto.randomUUID(), sourceId: parent.id, targetId: id, kind: 'parent' as const }] : []
     persist({ ...projects, nodes: [...projects.nodes, node], edges: [...projects.edges, ...edge] })
     setSelectedId(id)
+  }
+
+  function captureQuickEntry() {
+    const title = quickTitle.trim()
+    if (!title) return
+    const parent = projects.nodes.find(node => node.id === quickProjectId)
+    if (captureMode === 'task' && parent) {
+      const task: ProjectTask = { id: crypto.randomUUID(), title, done: false, dueDate: quickDueDate || undefined }
+      persist({ ...projects, nodes: projects.nodes.map(node => node.id === parent.id ? { ...node, tasks: [...(node.tasks ?? []), task], status: node.status === 'done' ? 'active' : node.status } : node) })
+      setSelectedId(parent.id)
+    } else {
+      const id = crypto.randomUUID()
+      const node: ProjectNode = {
+        id,
+        title,
+        notes: quickNotes.trim(),
+        parentId: parent?.id,
+        status: 'idea',
+        dueDate: quickDueDate || undefined,
+        tags: [],
+        color: parent?.color ?? '#f59e0b',
+        position: parent?.position
+          ? { x: parent.position.x + 220, y: parent.position.y + 105 }
+          : { x: CANVAS_WIDTH / 2 - NODE_HALF_WIDTH, y: CANVAS_HEIGHT / 2 - NODE_HALF_HEIGHT },
+      }
+      const edge = parent ? [{ id: crypto.randomUUID(), sourceId: parent.id, targetId: id, kind: 'parent' as const }] : []
+      persist({ ...projects, nodes: [...projects.nodes, node], edges: [...projects.edges, ...edge] })
+      setSelectedId(id)
+    }
+    setQuickTitle('')
+    setQuickNotes('')
+    setQuickDueDate('')
+    setCloudMessage('Note enregistrée et mise en file de synchronisation.')
   }
 
   async function importProjects(event: ChangeEvent<HTMLInputElement>) {
@@ -359,6 +401,46 @@ export function Projects() {
     setSelectedId(null)
   }
 
+  async function createDocumentForSelected() {
+    if (!selected) return
+    try {
+      setCloudBusy(`doc:${selected.id}`)
+      setCloudMessage('')
+      const url = await drive.createProjectDocument(`Life Hub — ${selected.title}`)
+      updateNode({ sourceUrl: url })
+      setCloudMessage('Google Doc créé et relié à la carte.')
+    } catch (caught) {
+      setCloudMessage(caught instanceof Error ? caught.message : 'Création du Google Doc impossible.')
+    } finally {
+      setCloudBusy(null)
+    }
+  }
+
+  async function sendTaskToGoogle(node: ProjectNode, task: ProjectTask) {
+    try {
+      setCloudBusy(`task:${task.id}`)
+      setCloudMessage('')
+      const result = await drive.syncProjectTask({
+        id: task.googleTaskId,
+        listId: task.googleTaskListId,
+        title: task.title,
+        dueDate: task.dueDate,
+        done: task.done,
+        notes: [`Projet Life Hub : ${node.title}`, node.sourceUrl].filter(Boolean).join('\n'),
+      })
+      updateTask(node.id, task.id, {
+        googleTaskId: result.id,
+        googleTaskListId: result.listId,
+        googleTaskUrl: result.webViewLink,
+      })
+      setCloudMessage(task.googleTaskId ? 'Google Tasks mis à jour.' : 'Tâche ajoutée à Google Tasks.')
+    } catch (caught) {
+      setCloudMessage(caught instanceof Error ? caught.message : 'Synchronisation Google Tasks impossible.')
+    } finally {
+      setCloudBusy(null)
+    }
+  }
+
   function startDrag(event: ReactPointerEvent, node: ProjectNode) {
     const canvas = canvasRef.current?.getBoundingClientRect()
     if (!canvas) return
@@ -393,7 +475,11 @@ export function Projects() {
           <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-400">Projets & MindMap</p>
           <h1 className="truncate text-xl font-black sm:text-2xl">Clarifier, relier, avancer.</h1>
         </div>
-        <span className="mr-2 text-xs text-slate-500">{projects.nodes.length} cartes · sauvegarde automatique</span>
+        <button onClick={() => void drive.syncNow()} className={`mr-1 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-black ${drive.status === 'synced' ? 'bg-emerald-500/10 text-emerald-300' : drive.status === 'syncing' || drive.status === 'connecting' ? 'bg-blue-500/10 text-blue-300' : 'bg-slate-800 text-slate-400'}`} title="Synchroniser les projets entre PC et Android">
+          {drive.status === 'syncing' || drive.status === 'connecting' ? <LoaderCircle className="animate-spin" size={13} /> : <Cloud size={13} />}
+          {drive.status === 'synced' ? 'PC ↔ Android à jour' : drive.status === 'syncing' || drive.status === 'connecting' ? 'Synchronisation…' : 'Connecter Google'}
+        </button>
+        <span className="mr-2 text-xs text-slate-500">{projects.nodes.length} cartes</span>
         <div className="flex rounded-xl border border-slate-700 bg-slate-900 p-1">
           <button onClick={() => chooseView('map')} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${viewMode === 'map' ? 'bg-amber-500 text-slate-950' : 'text-slate-500'}`}><Network size={15} /> Carte</button>
           <button onClick={() => chooseView('list')} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${viewMode === 'list' ? 'bg-amber-500 text-slate-950' : 'text-slate-500'}`}><LayoutList size={15} /> Liste</button>
@@ -406,6 +492,22 @@ export function Projects() {
       </header>
 
       {importMessage && <button onClick={() => setImportMessage('')} className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-left text-xs font-bold text-amber-200 lg:px-8">{importMessage} <span className="ml-2 opacity-60">×</span></button>}
+
+      <section className="border-b border-slate-800 bg-slate-950/80 px-3 py-3 lg:px-8">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 lg:flex-row lg:items-start">
+          <div className="flex rounded-xl border border-slate-700 bg-slate-900 p-1">
+            <button onClick={() => setCaptureMode('note')} className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${captureMode === 'note' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'}`}><FilePlus2 size={15} /> Note</button>
+            <button onClick={() => setCaptureMode('task')} className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${captureMode === 'task' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'}`}><ListTodo size={15} /> Tâche</button>
+          </div>
+          <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[1fr_220px_150px_auto]">
+            <div className="min-w-0"><input value={quickTitle} onChange={event => setQuickTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) captureQuickEntry() }} placeholder={captureMode === 'task' ? 'Nouvelle tâche…' : 'Une idée, une note…'} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-base font-bold text-white outline-none focus:border-amber-500" />{captureMode === 'note' && <textarea value={quickNotes} onChange={event => setQuickNotes(event.target.value)} rows={2} placeholder="Détails facultatifs…" className="mt-2 w-full resize-y rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-200 outline-none focus:border-amber-500" />}</div>
+            <select value={quickProjectId} onChange={event => setQuickProjectId(event.target.value)} className="h-11 min-w-0 rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-bold text-white"><option value="">{captureMode === 'task' ? 'Choisir un projet' : 'Niveau principal'}</option>{projects.nodes.filter(node => node.status !== 'done').map(node => <option key={node.id} value={node.id}>{node.title}</option>)}</select>
+            <input type="date" aria-label="Échéance" value={quickDueDate} onChange={event => setQuickDueDate(event.target.value)} className="h-11 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-white" />
+            <button onClick={captureQuickEntry} disabled={!quickTitle.trim() || (captureMode === 'task' && !quickProjectId)} className="h-11 rounded-xl bg-amber-500 px-4 text-xs font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><Plus className="mr-1 inline" size={15} /> Ajouter</button>
+          </div>
+        </div>
+        {(cloudMessage || drive.error) && <p className="mx-auto mt-2 max-w-6xl text-[10px] font-bold text-amber-300">{cloudMessage || drive.error}</p>}
+      </section>
 
       <div className="relative flex-1 overflow-auto">
         {viewMode === 'map' ? (
@@ -471,6 +573,7 @@ export function Projects() {
           <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900/70 p-3"><div className="flex items-center justify-between text-xs font-bold"><span className="text-slate-500">Avancement calculé</span><span className="text-amber-300">{completionFor(selected)}%</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-400" style={{ width: `${completionFor(selected)}%` }} /></div></div>
           <label className="mt-3 block text-xs font-bold text-slate-400">Détail<textarea value={selected.notes ?? ''} onChange={event => updateNode({ notes: event.target.value })} rows={5} className="mt-1 w-full resize-y rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-sm leading-relaxed text-white outline-none focus:border-amber-500" /></label>
           <label className="mt-3 block text-xs font-bold text-slate-400">Google Doc ou fichier Drive associé<input value={selected.sourceUrl ?? ''} onChange={event => updateNode({ sourceUrl: event.target.value.trim() || undefined })} inputMode="url" placeholder="https://docs.google.com/…" className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-xs text-white outline-none focus:border-amber-500" /></label>
+          {!selected.sourceUrl && <button onClick={() => void createDocumentForSelected()} disabled={cloudBusy === `doc:${selected.id}`} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-xs font-black text-blue-300 disabled:opacity-60">{cloudBusy === `doc:${selected.id}` ? <LoaderCircle className="animate-spin" size={14} /> : <FilePlus2 size={14} />} Créer et relier un Google Doc</button>}
           {selected.sourceUrl && <a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs font-black text-amber-300"><ExternalLink size={14} /> Ouvrir le document associé</a>}
           <label className="mt-3 block text-xs font-bold text-slate-400">Étiquettes<input value={(selected.tags ?? []).join(', ')} onChange={event => updateNode({ tags: event.target.value.split(',').map(tag => tag.trim()).filter(Boolean) })} placeholder="maison, travail…" className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-sm text-white outline-none focus:border-amber-500" /></label>
           <section className="mt-4 border-t border-slate-800 pt-4">
@@ -479,6 +582,7 @@ export function Projects() {
               <div className="flex items-center gap-2"><button onClick={() => toggleTask(selected.id, task.id)} className={task.done ? 'text-emerald-400' : 'text-slate-600'}>{task.done ? <CheckSquare2 size={18} /> : <Square size={18} />}</button><input value={task.title} onChange={event => updateTask(selected.id, task.id, { title: event.target.value })} className={`min-w-0 flex-1 bg-transparent text-xs font-bold outline-none ${task.done ? 'text-slate-600 line-through' : 'text-white'}`} /><button onClick={() => deleteTask(selected.id, task.id)} className="text-slate-700 hover:text-red-400"><Trash2 size={13} /></button></div>
               <div className="mt-2 grid grid-cols-2 gap-1.5"><input type="date" aria-label="Début de tâche" value={task.startDate ?? ''} onChange={event => updateTask(selected.id, task.id, { startDate: event.target.value || undefined })} className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-400" /><input type="date" aria-label="Fin de tâche" value={task.dueDate ?? ''} onChange={event => updateTask(selected.id, task.id, { dueDate: event.target.value || undefined })} className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-400" /></div>
               <div className="mt-1.5 flex gap-1.5"><input value={task.sourceUrl ?? ''} onChange={event => updateTask(selected.id, task.id, { sourceUrl: event.target.value || undefined })} inputMode="url" placeholder="Lien Google Drive / Doc" className="min-w-0 flex-1 rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-[10px] text-slate-400 outline-none focus:border-amber-500" />{task.sourceUrl && <a href={task.sourceUrl} target="_blank" rel="noopener noreferrer" className="grid w-8 place-items-center rounded-lg bg-amber-500/10 text-amber-400"><ExternalLink size={13} /></a>}</div>
+              <div className="mt-1.5 flex gap-1.5"><button onClick={() => void sendTaskToGoogle(selected, task)} disabled={cloudBusy === `task:${task.id}`} className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-500/10 px-2 py-2 text-[10px] font-black text-blue-300 disabled:opacity-60">{cloudBusy === `task:${task.id}` ? <LoaderCircle className="animate-spin" size={12} /> : <RefreshCw size={12} />} {task.googleTaskId ? 'Mettre à jour Google Tasks' : 'Ajouter à Google Tasks'}</button>{task.googleTaskUrl && <a href={task.googleTaskUrl} target="_blank" rel="noopener noreferrer" title="Ouvrir dans Google Tasks" className="grid w-9 place-items-center rounded-lg bg-blue-500/10 text-blue-300"><ExternalLink size={13} /></a>}</div>
             </div>)}{!(selected.tasks?.length) && <p className="rounded-xl border border-dashed border-slate-800 px-3 py-4 text-center text-[10px] text-slate-600">Aucune tâche. Ajoute la première pour alimenter la liste et le Gantt.</p>}</div>
           </section>
           {selectedChildren.length > 0 && <div className="mt-4"><p className="text-xs font-bold text-slate-400">Branches</p><div className="mt-2 flex flex-wrap gap-1.5">{selectedChildren.map(child => <button key={child.id} onClick={() => setSelectedId(child.id)} className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[10px] font-bold text-slate-300">{child.title}</button>)}</div></div>}
