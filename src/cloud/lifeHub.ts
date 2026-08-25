@@ -32,6 +32,9 @@ export interface ProjectTask {
   startDate?: string
   dueDate?: string
   sourceUrl?: string
+  googleTaskId?: string
+  googleTaskListId?: string
+  googleTaskUrl?: string
 }
 
 export interface ProjectEdge {
