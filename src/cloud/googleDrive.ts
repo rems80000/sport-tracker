@@ -1,6 +1,9 @@
 import { LIFE_HUB_FILE_NAME } from './lifeHub'
 
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/tasks',
+].join(' ')
 const GOOGLE_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
 
 interface TokenResponse {
@@ -105,7 +108,7 @@ export async function requestDriveAccess(clientId: string): Promise<string> {
     }
     const client = oauth.initTokenClient({
       client_id: clientId,
-      scope: DRIVE_SCOPE,
+      scope: GOOGLE_SCOPES,
       callback: response => {
         if (response.error || !response.access_token) {
           reject(new Error(response.error_description || response.error || 'Autorisation Google refusée'))
@@ -199,6 +202,23 @@ export async function updateJsonFile(accessToken: string, fileId: string, data: 
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json; charset=UTF-8' },
       body: JSON.stringify(data, null, 2),
+    },
+  )
+  return response.json() as Promise<DriveFile>
+}
+
+export async function createGoogleDocument(accessToken: string, title: string): Promise<DriveFile> {
+  const response = await driveFetch(
+    accessToken,
+    'https://www.googleapis.com/drive/v3/files?fields=id,name,modifiedTime',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+      body: JSON.stringify({
+        name: title.trim() || 'Note Life Hub',
+        mimeType: 'application/vnd.google-apps.document',
+        description: 'Document créé depuis Remy Life Hub · Projets',
+      }),
     },
   )
   return response.json() as Promise<DriveFile>
