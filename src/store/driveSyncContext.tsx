@@ -9,12 +9,15 @@ import {
   downloadJson,
   downloadJsonRevision,
   findLifeHubFile,
+  exportGoogleDocumentText,
   isDriveAuthError,
   listJsonRevisions,
+  listGoogleDocuments,
   requestDriveAccess,
   revokeDriveAccess,
   updateJsonFile,
 } from '../cloud/googleDrive'
+import type { GoogleDocumentSummary } from '../cloud/googleDrive'
 import { upsertGoogleTask } from '../cloud/googleTasks'
 import type { GoogleTaskInput, GoogleTaskResult } from '../cloud/googleTasks'
 import { getLocalUpdatedAt, mergeAppStates, setLocalUpdatedAt } from '../utils/storage'
@@ -43,6 +46,8 @@ interface DriveSyncContextValue {
   syncNow: () => Promise<void>
   createProjectDocument: (title: string) => Promise<string>
   syncProjectTask: (task: GoogleTaskInput) => Promise<GoogleTaskResult>
+  listProjectDocuments: () => Promise<GoogleDocumentSummary[]>
+  readProjectDocument: (fileId: string) => Promise<string>
 }
 
 const DriveSyncContext = createContext<DriveSyncContextValue | null>(null)
@@ -279,6 +284,16 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     return upsertGoogleTask(token, task)
   }, [requireGoogleToken])
 
+  const listProjectDocuments = useCallback(async () => {
+    const token = await requireGoogleToken()
+    return listGoogleDocuments(token)
+  }, [requireGoogleToken])
+
+  const readProjectDocument = useCallback(async (fileId: string) => {
+    const token = await requireGoogleToken()
+    return exportGoogleDocumentText(token, fileId)
+  }, [requireGoogleToken])
+
   useEffect(() => {
     const currentJson = JSON.stringify(state)
     if (currentJson === lastStateJsonRef.current) return
@@ -329,6 +344,8 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
       syncNow,
       createProjectDocument,
       syncProjectTask,
+      listProjectDocuments,
+      readProjectDocument,
     }}>
       {children}
     </DriveSyncContext.Provider>

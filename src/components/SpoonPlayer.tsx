@@ -81,7 +81,7 @@ export function SpoonPlayer() {
   }
 
   return (
-    <section className={`fixed bottom-[76px] right-2 z-[90] w-[min(360px,calc(100vw-1rem))] overflow-hidden rounded-3xl border shadow-2xl transition-colors lg:bottom-4 lg:right-4 ${source === 'spoon' ? 'border-rose-500/30 bg-gradient-to-br from-rose-950 via-slate-950 to-violet-950 shadow-rose-950/50' : 'border-emerald-500/30 bg-gradient-to-br from-emerald-950 via-slate-950 to-black shadow-emerald-950/50'}`}>
+    <section className={`relative z-[60] mx-auto w-full max-w-3xl flex-shrink-0 overflow-hidden border-x border-b shadow-xl transition-colors ${source === 'spoon' ? 'border-rose-500/30 bg-gradient-to-br from-rose-950 via-slate-950 to-violet-950 shadow-rose-950/30' : 'border-emerald-500/30 bg-gradient-to-br from-emerald-950 via-slate-950 to-black shadow-emerald-950/30'}`}>
       <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
       <button type="button" onClick={toggleOpen} className="relative flex w-full items-center gap-3 px-3 py-2.5 text-left">
         <span className={`grid h-9 w-9 flex-none place-items-center rounded-xl ${source === 'spoon' ? 'bg-gradient-to-br from-rose-500 to-violet-600 text-white' : 'bg-[#1ed760] text-black'}`}>{source === 'spoon' ? <Radio size={17} /> : <Music2 size={17} />}</span>
@@ -91,7 +91,7 @@ export function SpoonPlayer() {
 
       <div aria-hidden={!open} className={`relative grid transition-[grid-template-rows,opacity] duration-300 ${open ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0'}`}>
       <div className="min-h-0 overflow-hidden">
-      <div className="max-h-[calc(100vh-150px)] overflow-y-auto px-3 pb-3">
+      <div className="max-h-[min(520px,58vh)] overflow-y-auto px-3 pb-3">
       <div className="mb-3 grid grid-cols-2 rounded-2xl border border-white/5 bg-black/40 p-1.5" role="tablist" aria-label="Source audio">
         <button type="button" role="tab" aria-selected={source === 'spoon'} onClick={() => chooseSource('spoon')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${source === 'spoon' ? 'bg-gradient-to-r from-rose-600 to-violet-600 text-white shadow-lg shadow-rose-950' : 'text-slate-500 hover:text-white'}`}><Radio size={15} /> Spoon</button>
         <button type="button" role="tab" aria-selected={source === 'spotify'} onClick={() => chooseSource('spotify')} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${source === 'spotify' ? 'bg-[#1ed760] text-black shadow-lg shadow-emerald-950' : 'text-slate-500 hover:text-white'}`}><Music2 size={15} /> Spotify</button>

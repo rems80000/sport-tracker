@@ -16,6 +16,8 @@ export interface ProjectNode {
   status?: 'idea' | 'active' | 'paused' | 'done'
   notes?: string
   sourceUrl?: string
+  googleDriveFileId?: string
+  sourceModifiedTime?: string
   startDate?: string
   dueDate?: string
   progress?: number
