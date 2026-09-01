@@ -261,6 +261,24 @@ export function Projects() {
     return () => window.removeEventListener(LIFE_HUB_PROJECTS_IMPORTED_EVENT, refresh)
   }, [])
   useEffect(() => {
+    const current = projectsRef.current
+    let migrated = 0
+    const nodes = current.nodes.map(node => {
+      const looksImported = Boolean(node.googleDriveFileId || node.tags?.includes('google-doc') || googleDocTaskKey(node.title) === 'notes a la volee')
+      if (!looksImported || node.tasks?.length || !node.notes?.trim()) return node
+      const tasks = tasksFromGoogleDoc(node.notes, node.sourceUrl ?? '')
+      if (!tasks.length) return node
+      migrated += tasks.length
+      return { ...node, tasks, notes: googleDocSummary(node.notes, tasks.length) }
+    })
+    if (!migrated) return
+    const next = { ...current, nodes }
+    projectsRef.current = next
+    setProjects(next)
+    saveProjectsData(next)
+    setCloudMessage(`${migrated} ancienne${migrated > 1 ? 's' : ''} note${migrated > 1 ? 's' : ''} convertie${migrated > 1 ? 's' : ''} en élément${migrated > 1 ? 's' : ''} à cocher.`)
+  }, [])
+  useEffect(() => {
     if (autoLayoutDone.current || projects.nodes.length < 2) return
     autoLayoutDone.current = true
     try {
