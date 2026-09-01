@@ -30,6 +30,7 @@ export interface ProjectNode {
 export interface ProjectTask {
   id: string
   title: string
+  details?: string
   done: boolean
   startDate?: string
   dueDate?: string

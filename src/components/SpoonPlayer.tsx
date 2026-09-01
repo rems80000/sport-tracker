@@ -81,15 +81,15 @@ export function SpoonPlayer() {
   }
 
   return (
-    <section className={`relative z-[60] mx-auto w-full max-w-3xl flex-shrink-0 overflow-hidden border-x border-b shadow-xl transition-colors ${source === 'spoon' ? 'border-rose-500/30 bg-gradient-to-br from-rose-950 via-slate-950 to-violet-950 shadow-rose-950/30' : 'border-emerald-500/30 bg-gradient-to-br from-emerald-950 via-slate-950 to-black shadow-emerald-950/30'}`}>
+    <section className={`relative z-[60] w-full flex-shrink-0 border-b shadow-xl transition-colors lg:w-[390px] lg:border-b-0 ${source === 'spoon' ? 'border-rose-400/40 bg-gradient-to-br from-rose-900 via-slate-800 to-violet-900 shadow-rose-950/30' : 'border-emerald-400/40 bg-gradient-to-br from-emerald-900 via-slate-800 to-slate-900 shadow-emerald-950/30'}`}>
       <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
-      <button type="button" onClick={toggleOpen} className="relative flex w-full items-center gap-3 px-3 py-2.5 text-left">
+      <button type="button" onClick={toggleOpen} className="relative flex h-14 w-full items-center gap-3 px-3 py-2 text-left">
         <span className={`grid h-9 w-9 flex-none place-items-center rounded-xl ${source === 'spoon' ? 'bg-gradient-to-br from-rose-500 to-violet-600 text-white' : 'bg-[#1ed760] text-black'}`}>{source === 'spoon' ? <Radio size={17} /> : <Music2 size={17} />}</span>
         <span className="min-w-0 flex-1"><span className="block text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Audio en continu</span><span className="block truncate text-sm font-black text-white">{source === 'spoon' ? station.label : 'Spotify'}</span></span>
         <span className="rounded-lg border border-white/10 bg-white/5 p-1.5 text-slate-400">{open ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</span>
       </button>
 
-      <div aria-hidden={!open} className={`relative grid transition-[grid-template-rows,opacity] duration-300 ${open ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0'}`}>
+      <div aria-hidden={!open} className={`relative grid border-t border-white/10 bg-slate-800 shadow-2xl transition-[grid-template-rows,opacity] duration-300 lg:absolute lg:right-0 lg:top-full lg:w-[430px] lg:rounded-b-2xl lg:border lg:border-t-0 ${open ? 'grid-rows-[1fr] opacity-100' : 'pointer-events-none grid-rows-[0fr] opacity-0'}`}>
       <div className="min-h-0 overflow-hidden">
       <div className="max-h-[min(520px,58vh)] overflow-y-auto px-3 pb-3">
       <div className="mb-3 grid grid-cols-2 rounded-2xl border border-white/5 bg-black/40 p-1.5" role="tablist" aria-label="Source audio">

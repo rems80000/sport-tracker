@@ -142,8 +142,10 @@ function AppInner() {
   return (
     <div className={`app-root flex min-h-dvh flex-col ${isHubModule ? 'bg-slate-950' : `theme-${state.theme}`}`}>
       {!isHubModule && !isActiveWorkout && <ClockBar />}
-      <HubSwitcher />
-      <SpoonPlayer />
+      <div className="hub-topbar relative z-[70] flex-shrink-0 lg:flex lg:items-stretch">
+        <HubSwitcher />
+        <SpoonPlayer />
+      </div>
       {isHubModule ? (
         <main className="relative min-h-0 flex-1 overflow-auto">
           <Routes>

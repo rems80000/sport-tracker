@@ -5,6 +5,7 @@ import type { ProjectNode, ProjectsData, ProjectTask } from '../cloud/lifeHub'
 import type { GoogleDocumentSummary } from '../cloud/googleDrive'
 import { LIFE_HUB_PROJECTS_IMPORTED_EVENT, loadProjectsSnapshot, saveProjectsData } from '../cloud/moduleStorage'
 import { useDriveSync } from '../store/driveSyncContext'
+import { googleDocTaskKey, parseGoogleDocTasks } from '../utils/googleDocTasks'
 
 type ViewMode = 'map' | 'list' | 'gantt'
 type ProjectStatus = NonNullable<ProjectNode['status']>
@@ -26,8 +27,8 @@ const VIEW_KEY = 'life_hub_projects_view_v1'
 const RADIAL_LAYOUT_KEY = 'life_hub_projects_radial_v1'
 const CANVAS_WIDTH = 1400
 const CANVAS_HEIGHT = 820
-const NODE_HALF_WIDTH = 88
-const NODE_HALF_HEIGHT = 36
+const NODE_HALF_WIDTH = 128
+const NODE_HALF_HEIGHT = 58
 const DAY_MS = 24 * 60 * 60 * 1000
 const TODAY_ISO = new Date().toISOString().slice(0, 10)
 
@@ -61,6 +62,30 @@ function completionFor(node: ProjectNode) {
   if (node.tasks?.length) return Math.round((node.tasks.filter(task => task.done).length / node.tasks.length) * 100)
   if (node.status === 'done') return 100
   return Math.min(100, Math.max(0, node.progress ?? 0))
+}
+
+function tasksFromGoogleDoc(content: string, sourceUrl: string, existingTasks: ProjectTask[] = []) {
+  const parsed = parseGoogleDocTasks(content)
+  const existingByTitle = new Map(existingTasks.map(task => [googleDocTaskKey(task.title), task]))
+  const importedKeys = new Set(parsed.map(task => task.key))
+  const imported = parsed.map(item => {
+    const previous = existingByTitle.get(item.key)
+    return {
+      ...previous,
+      id: previous?.id ?? crypto.randomUUID(),
+      title: item.title,
+      details: item.details,
+      done: item.explicitState ? item.done : previous?.done ?? false,
+      sourceUrl,
+    } satisfies ProjectTask
+  })
+  const manual = existingTasks.filter(task => !importedKeys.has(googleDocTaskKey(task.title)) && task.sourceUrl !== sourceUrl)
+  return [...imported, ...manual]
+}
+
+function googleDocSummary(content: string, taskCount: number) {
+  if (!taskCount) return content || 'Ce Google Doc ne contient pas encore de texte.'
+  return `${taskCount} élément${taskCount > 1 ? 's' : ''} importé${taskCount > 1 ? 's' : ''} depuis Google Docs. Chaque élément peut être coché séparément.`
 }
 
 function toDay(value?: string) {
@@ -289,8 +314,9 @@ export function Projects() {
     const title = quickTitle.trim()
     if (!title) return
     const parent = projects.nodes.find(node => node.id === quickProjectId)
-    if (captureMode === 'task' && parent) {
-      const task: ProjectTask = { id: crypto.randomUUID(), title, done: false, dueDate: quickDueDate || undefined }
+    const isNotesInbox = captureMode === 'note' && parent && googleDocTaskKey(parent.title) === 'notes a la volee'
+    if ((captureMode === 'task' && parent) || isNotesInbox) {
+      const task: ProjectTask = { id: crypto.randomUUID(), title, details: quickNotes.trim() || undefined, done: false, dueDate: quickDueDate || undefined, sourceUrl: isNotesInbox ? parent.sourceUrl : undefined }
       persist({ ...projects, nodes: projects.nodes.map(node => node.id === parent.id ? { ...node, tasks: [...(node.tasks ?? []), task], status: node.status === 'done' ? 'active' : node.status } : node) })
       setSelectedId(parent.id)
     } else {
@@ -315,7 +341,7 @@ export function Projects() {
     setQuickTitle('')
     setQuickNotes('')
     setQuickDueDate('')
-    setCloudMessage('Note enregistrée et mise en file de synchronisation.')
+      setCloudMessage(isNotesInbox ? 'Note ajoutée à « Notes à la volée » et mise en file de synchronisation.' : 'Note enregistrée et mise en file de synchronisation.')
   }
 
   async function importProjects(event: ChangeEvent<HTMLInputElement>) {
@@ -366,7 +392,7 @@ export function Projects() {
     persist({ ...projects, nodes: projects.nodes.map(node => {
       if (node.id !== nodeId) return node
       const completing = node.status !== 'done'
-      return { ...node, status: completing ? 'done' : 'active', tasks: node.tasks?.map(task => ({ ...task, done: completing })) }
+      return { ...node, status: completing ? 'done' : 'active' }
     }) })
   }
 
@@ -379,8 +405,7 @@ export function Projects() {
     persist({ ...projects, nodes: projects.nodes.map(node => {
       if (node.id !== nodeId) return node
       const tasks = (node.tasks ?? []).map(task => task.id === taskId ? { ...task, ...changes } : task)
-      const allDone = tasks.length > 0 && tasks.every(task => task.done)
-      return { ...node, tasks, status: allDone ? 'done' : node.status === 'done' ? 'active' : node.status }
+      return { ...node, tasks }
     }) })
   }
 
@@ -429,7 +454,7 @@ export function Projects() {
         title: task.title,
         dueDate: task.dueDate,
         done: task.done,
-        notes: [`Projet Life Hub : ${node.title}`, node.sourceUrl].filter(Boolean).join('\n'),
+        notes: [`Projet Life Hub : ${node.title}`, task.details, node.sourceUrl].filter(Boolean).join('\n'),
       })
       updateTask(node.id, task.id, {
         googleTaskId: result.id,
@@ -468,12 +493,14 @@ export function Projects() {
       const existing = projectsRef.current.nodes.find(node => node.googleDriveFileId === document.id || node.sourceUrl?.includes(document.id))
       let next: ProjectsData
       if (existing) {
+        const tasks = tasksFromGoogleDoc(content, sourceUrl, existing.tasks)
         next = {
           ...projectsRef.current,
           nodes: projectsRef.current.nodes.map(node => node.id === existing.id ? {
             ...node,
             title: document.name || node.title,
-            notes: content || 'Ce Google Doc ne contient pas encore de texte.',
+            notes: googleDocSummary(content, tasks.length),
+            tasks,
             sourceUrl,
             googleDriveFileId: document.id,
             sourceModifiedTime: document.modifiedTime,
@@ -484,10 +511,12 @@ export function Projects() {
       } else {
         const id = crypto.randomUUID()
         const index = projectsRef.current.nodes.length
+        const tasks = tasksFromGoogleDoc(content, sourceUrl)
         const node: ProjectNode = {
           id,
           title: document.name || 'Google Doc sans titre',
-          notes: content || 'Ce Google Doc ne contient pas encore de texte.',
+          notes: googleDocSummary(content, tasks.length),
+          tasks,
           sourceUrl,
           googleDriveFileId: document.id,
           sourceModifiedTime: document.modifiedTime,
@@ -498,7 +527,7 @@ export function Projects() {
         }
         next = { ...projectsRef.current, nodes: [...projectsRef.current.nodes, node] }
         setSelectedId(id)
-        setCloudMessage(`« ${document.name} » importé avec son contenu.`)
+        setCloudMessage(`« ${document.name} » importé · ${tasks.length} élément${tasks.length > 1 ? 's' : ''} à cocher.`)
       }
       persist(next)
       setDocsOpen(false)
@@ -521,8 +550,8 @@ export function Projects() {
     const drag = dragRef.current
     const canvas = canvasRef.current?.getBoundingClientRect()
     if (!drag || !canvas) return
-    const x = Math.max(8, Math.min(canvas.width - 185, event.clientX - canvas.left - drag.offsetX))
-    const y = Math.max(8, Math.min(canvas.height - 76, event.clientY - canvas.top - drag.offsetY))
+    const x = Math.max(8, Math.min(canvas.width - 270, event.clientX - canvas.left - drag.offsetX))
+    const y = Math.max(8, Math.min(canvas.height - 130, event.clientY - canvas.top - drag.offsetY))
     setProjects(current => {
       const next = { ...current, nodes: current.nodes.map(node => node.id === drag.id ? { ...node, position: { x, y } } : node) }
       projectsRef.current = next
@@ -537,8 +566,8 @@ export function Projects() {
   }
 
   return (
-    <div className="flex min-h-full flex-col bg-[#090b12] text-slate-100">
-      <header className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-4 py-3 lg:px-8">
+    <div className="projects-page flex min-h-full flex-col text-slate-100">
+      <header className="projects-toolbar flex flex-wrap items-center gap-2 border-b px-4 py-3 lg:px-8">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-400">Projets & MindMap</p>
           <h1 className="truncate text-xl font-black sm:text-2xl">Clarifier, relier, avancer.</h1>
@@ -562,7 +591,7 @@ export function Projects() {
 
       {importMessage && <button onClick={() => setImportMessage('')} className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-left text-xs font-bold text-amber-200 lg:px-8">{importMessage} <span className="ml-2 opacity-60">×</span></button>}
 
-      <section className="border-b border-slate-800 bg-slate-950/80 px-3 py-3 lg:px-8">
+      <section className="projects-capture border-b px-3 py-3 lg:px-8">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 lg:flex-row lg:items-start">
           <div className="flex rounded-xl border border-slate-700 bg-slate-900 p-1">
             <button onClick={() => setCaptureMode('note')} className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${captureMode === 'note' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'}`}><FilePlus2 size={15} /> Note</button>
@@ -581,7 +610,7 @@ export function Projects() {
       <div className="relative flex-1 overflow-auto">
         {viewMode === 'map' ? (
           <div ref={canvasRef} onPointerMove={moveNode} onPointerUp={finishDrag} onPointerCancel={finishDrag} style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
-            className="relative min-h-[720px] min-w-[1100px] overflow-hidden bg-[radial-gradient(circle_at_1px_1px,#334155_1px,transparent_0)] [background-size:24px_24px]">
+            className="projects-map relative min-h-[720px] min-w-[1100px] overflow-hidden bg-[radial-gradient(circle_at_1px_1px,#475569_1px,transparent_0)] [background-size:24px_24px]">
             {projects.nodes.length === 0 && <div className="absolute inset-0 grid place-items-center p-6 text-center"><div><GitBranch className="mx-auto text-amber-400" size={42} /><h2 className="mt-4 text-2xl font-black">Posez votre première idée</h2><p className="mt-2 text-sm text-slate-500">Créez un noyau central, puis faites rayonner ses branches.</p><button onClick={() => addNode()} className="mt-5 rounded-xl bg-amber-500 px-5 py-3 font-black text-slate-950">Créer le noyau</button></div></div>}
             <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
               {projects.edges.map(edge => {
@@ -594,33 +623,41 @@ export function Projects() {
             {projects.nodes.map(node => {
               const status = node.status ?? 'idea'
               const isCore = !node.parentId
-              return <button key={node.id} onPointerDown={event => startDrag(event, node)} onDoubleClick={() => setSelectedId(node.id)}
+              const progress = completionFor(node)
+              return <article key={node.id} onPointerDown={event => startDrag(event, node)} onDoubleClick={() => setSelectedId(node.id)}
                 style={{ left: node.position?.x ?? 40, top: node.position?.y ?? 40, borderColor: selectedId === node.id || isCore ? node.color : undefined }}
-                className={`absolute w-44 touch-none cursor-grab rounded-2xl border-2 p-3 text-left shadow-2xl transition-transform hover:scale-105 active:cursor-grabbing ${STATUS_STYLES[status]} ${isCore ? 'ring-4 ring-amber-500/10' : ''}`}>
-                <span className="block truncate text-sm font-black">{node.title}</span>
-                <span className="mt-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider opacity-60"><span>{STATUS_LABELS[status]}</span>{node.sourceUrl && <ExternalLink size={11} />}</span>
-              </button>
+                className={`project-map-card absolute w-64 touch-none cursor-grab rounded-2xl border-2 p-3 text-left shadow-2xl transition-transform hover:scale-[1.02] active:cursor-grabbing ${STATUS_STYLES[status]} ${isCore ? 'ring-4 ring-amber-500/10' : ''}`}>
+                <button onPointerDown={event => event.stopPropagation()} onClick={() => setSelectedId(node.id)} className="block w-full text-left">
+                  <span className="block truncate text-sm font-black">{node.title}</span>
+                  <span className="mt-1 flex items-center justify-between text-[9px] font-bold uppercase tracking-wider opacity-80"><span>{STATUS_LABELS[status]}</span><span>{node.tasks?.length ? `${node.tasks.filter(task => task.done).length}/${node.tasks.length}` : `${progress}%`}</span></span>
+                </button>
+                <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-950/45"><div className="h-full rounded-full bg-amber-400" style={{ width: `${progress}%` }} /></div>
+                {node.tasks?.length ? <div className="mt-2 space-y-1">{node.tasks.slice(0, 2).map(task => <div key={task.id} className="flex items-start gap-1.5 text-[10px]">
+                  <button onPointerDown={event => event.stopPropagation()} onClick={() => toggleTask(node.id, task.id)} aria-label={task.done ? `Réactiver ${task.title}` : `Cocher ${task.title}`} className={`mt-0.5 flex-none ${task.done ? 'text-emerald-300' : 'text-slate-300'}`}>{task.done ? <CheckSquare2 size={13} /> : <Square size={13} />}</button>
+                  <span className={`line-clamp-2 leading-tight ${task.done ? 'text-slate-400 line-through' : 'text-slate-100'}`}>{task.title}</span>
+                </div>)}{node.tasks.length > 2 && <p className="text-[9px] font-bold text-amber-200">+ {node.tasks.length - 2} autre{node.tasks.length > 3 ? 's' : ''}</p>}</div> : <p className="mt-2 line-clamp-2 text-[10px] leading-snug text-slate-300">{node.notes || 'Aucun détail pour le moment.'}</p>}
+              </article>
             })}
           </div>
         ) : viewMode === 'list' ? (
           <div className={`mx-auto grid max-w-6xl gap-4 p-4 lg:p-6 ${selected ? 'sm:pr-[390px]' : ''}`}>
             {LIST_GROUPS.map(group => {
               const nodes = projects.nodes.filter(node => (node.status ?? 'idea') === group.status)
-              return <section key={group.status} className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/70">
-                <div className="flex items-center gap-3 border-b border-slate-800 px-4 py-3"><span className="grid h-8 w-8 place-items-center rounded-xl bg-slate-800 text-amber-300">{group.icon}</span><h2 className="font-black">{group.title}</h2><span className="ml-auto rounded-full bg-slate-800 px-2 py-1 text-[10px] font-black text-slate-400">{nodes.length}</span></div>
+              return <section key={group.status} className="project-group overflow-hidden rounded-2xl border">
+                <div className="flex items-center gap-3 border-b border-slate-600 px-4 py-3"><span className="grid h-8 w-8 place-items-center rounded-xl bg-slate-700 text-amber-300">{group.icon}</span><h2 className="font-black">{group.title}</h2><span className="ml-auto rounded-full bg-slate-700 px-2 py-1 text-[10px] font-black text-slate-200">{nodes.length}</span></div>
                 {nodes.length ? <div className="divide-y divide-slate-800/70">{nodes.map(node => {
                   const progress = completionFor(node)
-                  return <article key={node.id} className={`p-4 transition ${selectedId === node.id ? 'bg-amber-500/10' : 'hover:bg-slate-800/30'}`}>
+                  return <article key={node.id} className={`project-list-card p-4 transition ${selectedId === node.id ? 'is-selected' : ''}`}>
                     <div className="flex items-start gap-3">
-                      <button onClick={() => toggleNodeDone(node.id)} aria-label={node.status === 'done' ? 'Réactiver la carte' : 'Cocher la carte'} className={`mt-0.5 flex-none ${node.status === 'done' ? 'text-emerald-400' : 'text-slate-600'}`}>{node.status === 'done' ? <CheckSquare2 size={21} /> : <Square size={21} />}</button>
-                      <button onClick={() => setSelectedId(node.id)} className="min-w-0 flex-1 text-left"><span className={`block text-base font-black ${node.status === 'done' ? 'text-slate-500 line-through' : 'text-white'}`}>{node.title}</span><span className="mt-1 block whitespace-pre-wrap text-xs leading-relaxed text-slate-500">{node.notes || 'Aucun détail pour le moment.'}</span></button>
+                      <span className={`mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-xl ${node.status === 'done' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-blue-500/15 text-blue-200'}`}><ListTodo size={18} /></span>
+                      <button onClick={() => setSelectedId(node.id)} className="min-w-0 flex-1 text-left"><span className={`block text-base font-black ${node.status === 'done' ? 'text-slate-400' : 'text-white'}`}>{node.title}</span><span className="mt-1 block line-clamp-2 text-xs leading-relaxed text-slate-300">{node.notes || 'Aucun détail pour le moment.'}</span></button>
                       <div className="flex items-center gap-2"><span className="text-xs font-black tabular-nums text-amber-300">{progress}%</span>{node.sourceUrl && <a href={node.sourceUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-amber-500/10 p-2 text-amber-400" title="Ouvrir le document Drive"><ExternalLink size={15} /></a>}</div>
                     </div>
-                    <div className="ml-8 mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-400" style={{ width: `${progress}%` }} /></div>
-                    <div className="ml-8 mt-2 flex flex-wrap gap-1.5 text-[9px] font-bold text-slate-500">{node.startDate && <span className="rounded-full bg-slate-800 px-2 py-1">Début {new Date(`${node.startDate}T12:00`).toLocaleDateString('fr-FR')}</span>}{node.dueDate && <span className="rounded-full bg-slate-800 px-2 py-1">Fin {new Date(`${node.dueDate}T12:00`).toLocaleDateString('fr-FR')}</span>}{(node.tags ?? []).map(tag => <span key={tag} className="rounded-full bg-slate-800 px-2 py-1">#{tag}</span>)}</div>
-                    <div className="ml-8 mt-3 space-y-1.5">{(node.tasks ?? []).map(task => <div key={task.id} className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
-                      <button onClick={() => toggleTask(node.id, task.id)} className={task.done ? 'text-emerald-400' : 'text-slate-600'}>{task.done ? <CheckSquare2 size={17} /> : <Square size={17} />}</button>
-                      <button onClick={() => setSelectedId(node.id)} className={`min-w-0 flex-1 text-left text-xs font-bold ${task.done ? 'text-slate-600 line-through' : 'text-slate-300'}`}>{task.title}</button>
+                    <div className="ml-11 mt-3 h-1.5 overflow-hidden rounded-full bg-slate-700"><div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400" style={{ width: `${progress}%` }} /></div>
+                    <div className="ml-11 mt-2 flex flex-wrap gap-1.5 text-[9px] font-bold text-slate-300">{node.startDate && <span className="rounded-full bg-slate-700 px-2 py-1">Début {new Date(`${node.startDate}T12:00`).toLocaleDateString('fr-FR')}</span>}{node.dueDate && <span className="rounded-full bg-slate-700 px-2 py-1">Fin {new Date(`${node.dueDate}T12:00`).toLocaleDateString('fr-FR')}</span>}{(node.tags ?? []).map(tag => <span key={tag} className="rounded-full bg-slate-700 px-2 py-1">#{tag}</span>)}</div>
+                    <div className="ml-11 mt-3 space-y-1.5">{(node.tasks ?? []).map(task => <div key={task.id} className="project-task-row flex items-start gap-2 rounded-xl border px-3 py-2.5">
+                      <button onClick={() => toggleTask(node.id, task.id)} aria-label={task.done ? `Réactiver ${task.title}` : `Cocher ${task.title}`} className={`mt-0.5 ${task.done ? 'text-emerald-300' : 'text-slate-300'}`}>{task.done ? <CheckSquare2 size={18} /> : <Square size={18} />}</button>
+                      <button onClick={() => setSelectedId(node.id)} className={`min-w-0 flex-1 text-left text-xs font-bold ${task.done ? 'text-slate-400 line-through' : 'text-white'}`}><span className="block">{task.title}</span>{task.details && <span className="mt-0.5 block line-clamp-2 text-[10px] font-normal leading-relaxed text-slate-300">{task.details}</span>}</button>
                       {(task.startDate || task.dueDate) && <span className="text-[9px] text-slate-600">{task.dueDate ?? task.startDate}</span>}
                       {task.sourceUrl && <a href={task.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-amber-400"><Link2 size={13} /></a>}
                     </div>)}<button onClick={() => { addTask(node.id); setSelectedId(node.id) }} className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-black text-amber-400"><Plus size={12} /> Ajouter une tâche</button></div>
@@ -644,6 +681,7 @@ export function Projects() {
           <label className="mt-3 block text-xs font-bold text-slate-400">Google Doc ou fichier Drive associé<input value={selected.sourceUrl ?? ''} onChange={event => updateNode({ sourceUrl: event.target.value.trim() || undefined })} inputMode="url" placeholder="https://docs.google.com/…" className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-xs text-white outline-none focus:border-amber-500" /></label>
           {!selected.sourceUrl && <button onClick={() => void createDocumentForSelected()} disabled={cloudBusy === `doc:${selected.id}`} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-xs font-black text-blue-300 disabled:opacity-60">{cloudBusy === `doc:${selected.id}` ? <LoaderCircle className="animate-spin" size={14} /> : <FilePlus2 size={14} />} Créer et relier un Google Doc</button>}
           {selected.sourceUrl && <a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs font-black text-amber-300"><ExternalLink size={14} /> Ouvrir le document associé</a>}
+          {selected.googleDriveFileId && <button onClick={() => void importGoogleDoc({ id: selected.googleDriveFileId!, name: selected.title, modifiedTime: selected.sourceModifiedTime, webViewLink: selected.sourceUrl })} disabled={cloudBusy === `docs:${selected.googleDriveFileId}`} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-blue-400/40 bg-blue-500/15 px-3 py-2.5 text-xs font-black text-blue-200 disabled:opacity-60">{cloudBusy === `docs:${selected.googleDriveFileId}` ? <LoaderCircle className="animate-spin" size={14} /> : <RefreshCw size={14} />} Actualiser les éléments depuis Google Docs</button>}
           <label className="mt-3 block text-xs font-bold text-slate-400">Étiquettes<input value={(selected.tags ?? []).join(', ')} onChange={event => updateNode({ tags: event.target.value.split(',').map(tag => tag.trim()).filter(Boolean) })} placeholder="maison, travail…" className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-3 text-sm text-white outline-none focus:border-amber-500" /></label>
           <section className="mt-4 border-t border-slate-800 pt-4">
             <div className="flex items-center justify-between"><div><p className="text-xs font-black text-white">Liste des tâches</p><p className="text-[9px] text-slate-600">Coches et liens synchronisés sur Drive</p></div><button onClick={() => addTask(selected.id)} className="flex items-center gap-1 rounded-lg bg-amber-500 px-2.5 py-2 text-[10px] font-black text-slate-950"><Plus size={12} /> Tâche</button></div>
@@ -662,7 +700,7 @@ export function Projects() {
 
         {docsOpen && <div className="fixed inset-0 z-[120] grid place-items-center bg-black/75 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Importer un Google Doc">
           <section className="flex max-h-[82vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-blue-500/30 bg-slate-950 shadow-2xl">
-            <header className="flex items-start gap-3 border-b border-slate-800 p-4"><span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-500/15 text-blue-300"><FileText size={20} /></span><div className="min-w-0 flex-1"><h2 className="font-black text-white">Importer le contenu d’un Google Doc</h2><p className="mt-1 text-xs text-slate-500">Le texte devient le détail de la carte. Un nouvel import actualise la même carte.</p></div><button onClick={() => setDocsOpen(false)} className="rounded-xl p-2 text-slate-500 hover:bg-slate-800"><X size={18} /></button></header>
+            <header className="flex items-start gap-3 border-b border-slate-700 p-4"><span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-500/20 text-blue-200"><FileText size={20} /></span><div className="min-w-0 flex-1"><h2 className="font-black text-white">Importer le contenu d’un Google Doc</h2><p className="mt-1 text-xs leading-relaxed text-slate-300">Chaque ligne, puce ou case du document devient un élément distinct à cocher. Un nouvel import actualise la même carte sans perdre vos coches.</p></div><button onClick={() => setDocsOpen(false)} className="rounded-xl p-2 text-slate-300 hover:bg-slate-700"><X size={18} /></button></header>
             <div className="divide-y divide-slate-800 overflow-y-auto">{driveDocs.map(document => <button key={document.id} onClick={() => void importGoogleDoc(document)} disabled={cloudBusy === `docs:${document.id}`} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-blue-500/10 disabled:opacity-60"><FileText className="flex-none text-blue-400" size={18} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-white">{document.name}</span><span className="block text-[10px] text-slate-600">{document.modifiedTime ? `Modifié le ${new Date(document.modifiedTime).toLocaleDateString('fr-FR')}` : 'Google Docs'}</span></span>{cloudBusy === `docs:${document.id}` ? <LoaderCircle className="animate-spin text-blue-300" size={16} /> : <Plus className="text-slate-600" size={16} />}</button>)}</div>
           </section>
         </div>}
