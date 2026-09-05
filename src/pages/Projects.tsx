@@ -1,4 +1,4 @@
-import { Archive, CalendarRange, CheckSquare2, Cloud, ExternalLink, FilePlus2, FileText, GitBranch, LayoutList, Link2, ListTodo, LoaderCircle, Network, Orbit, Plus, RefreshCw, Save, Square, Trash2, Upload, X } from 'lucide-react'
+import { Archive, ArrowRight, CalendarRange, CheckSquare2, Cloud, ExternalLink, FilePlus2, FileText, GitBranch, Inbox, LayoutDashboard, LayoutList, Link2, ListTodo, LoaderCircle, Mic, MicOff, Network, Orbit, Plus, RefreshCw, Save, Sparkles, Square, Trash2, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type { ProjectNode, ProjectsData, ProjectTask } from '../cloud/lifeHub'
@@ -7,7 +7,7 @@ import { LIFE_HUB_PROJECTS_IMPORTED_EVENT, loadProjectsSnapshot, saveProjectsDat
 import { useDriveSync } from '../store/driveSyncContext'
 import { googleDocTaskKey, parseGoogleDocTasks } from '../utils/googleDocTasks'
 
-type ViewMode = 'map' | 'list' | 'gantt'
+type ViewMode = 'overview' | 'map' | 'list' | 'gantt'
 type ProjectStatus = NonNullable<ProjectNode['status']>
 interface GanttItem {
   id: string
@@ -23,7 +23,7 @@ interface GanttItem {
 }
 
 const EMPTY_PROJECTS: ProjectsData = { nodes: [], edges: [], activeViewId: 'main' }
-const VIEW_KEY = 'life_hub_projects_view_v1'
+const VIEW_KEY = 'life_hub_projects_view_v2'
 const RADIAL_LAYOUT_KEY = 'life_hub_projects_radial_v1'
 const CANVAS_WIDTH = 1400
 const CANVAS_HEIGHT = 820
@@ -54,8 +54,29 @@ function normalizedProjects(): ProjectsData {
 function initialView(): ViewMode {
   try {
     const saved = localStorage.getItem(VIEW_KEY)
-    return saved === 'list' || saved === 'gantt' ? saved : 'map'
-  } catch { return 'map' }
+    return saved === 'map' || saved === 'list' || saved === 'gantt' ? saved : 'overview'
+  } catch { return 'overview' }
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean
+  0: { transcript: string }
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number
+  results: ArrayLike<SpeechRecognitionResultLike>
+}
+
+interface SpeechRecognitionLike {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  start: () => void
+  stop: () => void
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  onerror: (() => void) | null
+  onend: (() => void) | null
 }
 
 function completionFor(node: ProjectNode) {
@@ -245,7 +266,10 @@ export function Projects() {
   const [cloudBusy, setCloudBusy] = useState<string | null>(null)
   const [driveDocs, setDriveDocs] = useState<GoogleDocumentSummary[]>([])
   const [docsOpen, setDocsOpen] = useState(false)
+  const [listening, setListening] = useState(false)
+  const [voiceMessage, setVoiceMessage] = useState('')
   const dragRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null)
+  const speechRef = useRef<SpeechRecognitionLike | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const importRef = useRef<HTMLInputElement>(null)
   const projectsRef = useRef(projects)
@@ -253,8 +277,12 @@ export function Projects() {
   const selected = projects.nodes.find(node => node.id === selectedId)
   const selectedParent = selected?.parentId ? projects.nodes.find(node => node.id === selected.parentId) : undefined
   const selectedChildren = selected ? projects.nodes.filter(node => node.parentId === selected.id) : []
+  const inboxNode = projects.nodes.find(node => googleDocTaskKey(node.title) === 'notes a la volee')
+  const openTasks = projects.nodes.flatMap(node => (node.tasks ?? []).filter(task => !task.done).map(task => ({ node, task })))
+  const dueSoon = openTasks.filter(({ task }) => task.dueDate && task.dueDate <= new Date(Date.now() + 7 * DAY_MS).toISOString().slice(0, 10))
 
   useEffect(() => { projectsRef.current = projects }, [projects])
+  useEffect(() => () => speechRef.current?.stop(), [])
   useEffect(() => {
     const refresh = () => setProjects(normalizedProjects())
     window.addEventListener(LIFE_HUB_PROJECTS_IMPORTED_EVENT, refresh)
@@ -331,12 +359,20 @@ export function Projects() {
   function captureQuickEntry() {
     const title = quickTitle.trim()
     if (!title) return
-    const parent = projects.nodes.find(node => node.id === quickProjectId)
+    const requestedParent = projects.nodes.find(node => node.id === quickProjectId)
+    const notesInbox = projects.nodes.find(node => googleDocTaskKey(node.title) === 'notes a la volee')
+    const parent = requestedParent ?? (captureMode === 'note' ? notesInbox : undefined)
     const isNotesInbox = captureMode === 'note' && parent && googleDocTaskKey(parent.title) === 'notes a la volee'
     if ((captureMode === 'task' && parent) || isNotesInbox) {
       const task: ProjectTask = { id: crypto.randomUUID(), title, details: quickNotes.trim() || undefined, done: false, dueDate: quickDueDate || undefined, sourceUrl: isNotesInbox ? parent.sourceUrl : undefined }
       persist({ ...projects, nodes: projects.nodes.map(node => node.id === parent.id ? { ...node, tasks: [...(node.tasks ?? []), task], status: node.status === 'done' ? 'active' : node.status } : node) })
       setSelectedId(parent.id)
+    } else if (captureMode === 'note' && !requestedParent) {
+      const id = crypto.randomUUID()
+      const task: ProjectTask = { id: crypto.randomUUID(), title, details: quickNotes.trim() || undefined, done: false, dueDate: quickDueDate || undefined }
+      const node: ProjectNode = { id, title: 'Notes à la volée', notes: 'Boîte d’entrée : capturez ici, clarifiez ensuite.', tasks: [task], status: 'active', tags: ['inbox'], color: '#4285f4', position: { x: CANVAS_WIDTH / 2 - NODE_HALF_WIDTH, y: CANVAS_HEIGHT / 2 - NODE_HALF_HEIGHT } }
+      persist({ ...projects, nodes: [...projects.nodes, node] })
+      setSelectedId(id)
     } else {
       const id = crypto.randomUUID()
       const node: ProjectNode = {
@@ -360,6 +396,77 @@ export function Projects() {
     setQuickNotes('')
     setQuickDueDate('')
       setCloudMessage(isNotesInbox ? 'Note ajoutée à « Notes à la volée » et mise en file de synchronisation.' : 'Note enregistrée et mise en file de synchronisation.')
+  }
+
+  function toggleVoiceCapture() {
+    if (listening) {
+      speechRef.current?.stop()
+      return
+    }
+    const browser = window as typeof window & { webkitSpeechRecognition?: new () => SpeechRecognitionLike; SpeechRecognition?: new () => SpeechRecognitionLike }
+    const Recognition = browser.SpeechRecognition ?? browser.webkitSpeechRecognition
+    if (!Recognition) {
+      setVoiceMessage('La dictée directe nécessite Chrome ou Edge. Vous pouvez utiliser le Google Doc vocal ci-dessous.')
+      return
+    }
+    const recognition = new Recognition()
+    recognition.lang = 'fr-FR'
+    recognition.continuous = true
+    recognition.interimResults = false
+    recognition.onresult = event => {
+      const phrases: string[] = []
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        if (event.results[index].isFinal) phrases.push(event.results[index][0].transcript.trim())
+      }
+      if (phrases.length) setQuickTitle(current => [current.trim(), phrases.join(' ')].filter(Boolean).join(' '))
+    }
+    recognition.onerror = () => {
+      setVoiceMessage('Je n’ai pas pu accéder au micro. Vérifiez son autorisation dans le navigateur.')
+      setListening(false)
+    }
+    recognition.onend = () => setListening(false)
+    speechRef.current = recognition
+    setVoiceMessage('Parlez naturellement : votre phrase apparaîtra dans la zone de capture.')
+    setListening(true)
+    recognition.start()
+  }
+
+  async function openOrCreateVoiceInbox() {
+    const existing = projectsRef.current.nodes.find(node => googleDocTaskKey(node.title) === 'notes a la volee')
+    if (existing?.sourceUrl) {
+      window.open(existing.sourceUrl, '_blank', 'noopener,noreferrer')
+      setSelectedId(existing.id)
+      return
+    }
+    try {
+      setCloudBusy('voice-inbox')
+      setCloudMessage('Création de votre boîte vocale Google…')
+      const url = await drive.createProjectDocument('Notes à la volée')
+      const fileId = url.match(/\/d\/([^/]+)/)?.[1]
+      const id = existing?.id ?? crypto.randomUUID()
+      const node: ProjectNode = {
+        ...(existing ?? {}),
+        id,
+        title: 'Notes à la volée',
+        notes: 'Boîte d’entrée vocale : une idée par ligne, puce ou case à cocher.',
+        tasks: existing?.tasks ?? [],
+        sourceUrl: url,
+        googleDriveFileId: fileId,
+        status: existing?.status ?? 'active',
+        tags: Array.from(new Set([...(existing?.tags ?? []), 'inbox', 'google-doc'])),
+        color: '#4285f4',
+        position: existing?.position ?? { x: CANVAS_WIDTH / 2 - NODE_HALF_WIDTH, y: CANVAS_HEIGHT / 2 - NODE_HALF_HEIGHT },
+      }
+      const current = projectsRef.current
+      persist({ ...current, nodes: existing ? current.nodes.map(item => item.id === existing.id ? node : item) : [...current.nodes, node] })
+      setSelectedId(id)
+      setCloudMessage('Votre Google Doc « Notes à la volée » est prêt. Dictez une idée par ligne, puis importez-le ici.')
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (caught) {
+      setCloudMessage(caught instanceof Error ? caught.message : 'Création de la boîte vocale impossible.')
+    } finally {
+      setCloudBusy(null)
+    }
   }
 
   async function importProjects(event: ChangeEvent<HTMLInputElement>) {
@@ -584,49 +691,75 @@ export function Projects() {
   }
 
   return (
-    <div className="projects-page flex min-h-full flex-col text-slate-100">
-      <header className="projects-toolbar flex flex-wrap items-center gap-2 border-b px-4 py-3 lg:px-8">
+    <div className="projects-page flex min-h-full flex-col">
+      <header className="projects-toolbar flex flex-wrap items-center gap-3 border-b px-4 py-4 lg:px-8">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-400">Projets & MindMap</p>
-          <h1 className="truncate text-xl font-black sm:text-2xl">Clarifier, relier, avancer.</h1>
+          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-amber-600">Espace de pensée</p>
+          <h1 className="truncate text-xl font-black sm:text-2xl">Capturer, clarifier, avancer.</h1>
         </div>
         <button onClick={() => void drive.syncNow()} className={`mr-1 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-black ${drive.status === 'synced' ? 'bg-emerald-500/10 text-emerald-300' : drive.status === 'syncing' || drive.status === 'connecting' ? 'bg-blue-500/10 text-blue-300' : 'bg-slate-800 text-slate-400'}`} title="Synchroniser les projets entre PC et Android">
           {drive.status === 'syncing' || drive.status === 'connecting' ? <LoaderCircle className="animate-spin" size={13} /> : <Cloud size={13} />}
           {drive.status === 'synced' ? 'PC ↔ Android à jour' : drive.status === 'syncing' || drive.status === 'connecting' ? 'Synchronisation…' : 'Connecter Google'}
         </button>
-        <span className="mr-2 text-xs text-slate-500">{projects.nodes.length} cartes</span>
-        <div className="flex rounded-xl border border-slate-700 bg-slate-900 p-1">
+        <div className="view-switcher flex rounded-xl border p-1">
+          <button onClick={() => chooseView('overview')} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${viewMode === 'overview' ? 'is-active' : ''}`}><LayoutDashboard size={15} /> Accueil</button>
           <button onClick={() => chooseView('map')} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${viewMode === 'map' ? 'bg-amber-500 text-slate-950' : 'text-slate-500'}`}><Network size={15} /> Carte</button>
           <button onClick={() => chooseView('list')} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${viewMode === 'list' ? 'bg-amber-500 text-slate-950' : 'text-slate-500'}`}><LayoutList size={15} /> Liste</button>
-          <button onClick={() => chooseView('gantt')} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${viewMode === 'gantt' ? 'bg-amber-500 text-slate-950' : 'text-slate-500'}`}><CalendarRange size={15} /> Gantt</button>
+          <button onClick={() => chooseView('gantt')} className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${viewMode === 'gantt' ? 'bg-amber-500 text-slate-950' : 'text-slate-500'}`}><CalendarRange size={15} /> Planning</button>
         </div>
         {viewMode === 'map' && <button onClick={applyRadialLayout} className="flex items-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-xs font-black text-violet-300"><Orbit size={16} /> Disposition en étoile</button>}
         <input ref={importRef} type="file" accept="application/json,.json" className="hidden" onChange={importProjects} />
-        <button onClick={() => importRef.current?.click()} className="flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-black text-amber-300"><Upload size={16} /> Importer</button>
-        <button onClick={() => void openGoogleDocs()} disabled={cloudBusy === 'docs:list'} className="flex items-center gap-2 rounded-xl border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs font-black text-blue-300 disabled:opacity-60">{cloudBusy === 'docs:list' ? <LoaderCircle className="animate-spin" size={16} /> : <FileText size={16} />} Google Docs</button>
-        <button onClick={() => addNode()} className="flex items-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-xs font-black text-slate-950"><Plus size={16} /> Nouvelle idée</button>
+        <button onClick={() => importRef.current?.click()} className="toolbar-action"><Upload size={16} /> Importer</button>
+        <button onClick={() => void openGoogleDocs()} disabled={cloudBusy === 'docs:list'} className="toolbar-action google">{cloudBusy === 'docs:list' ? <LoaderCircle className="animate-spin" size={16} /> : <FileText size={16} />} Google Docs</button>
+        <button onClick={() => addNode()} className="toolbar-primary"><Plus size={16} /> Nouveau projet</button>
       </header>
 
       {importMessage && <button onClick={() => setImportMessage('')} className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-left text-xs font-bold text-amber-200 lg:px-8">{importMessage} <span className="ml-2 opacity-60">×</span></button>}
 
-      <section className="projects-capture border-b px-3 py-3 lg:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 lg:flex-row lg:items-start">
-          <div className="flex rounded-xl border border-slate-700 bg-slate-900 p-1">
-            <button onClick={() => setCaptureMode('note')} className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${captureMode === 'note' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'}`}><FilePlus2 size={15} /> Note</button>
-            <button onClick={() => setCaptureMode('task')} className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-black ${captureMode === 'task' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'}`}><ListTodo size={15} /> Tâche</button>
-          </div>
-          <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[1fr_220px_150px_auto]">
-            <div className="min-w-0"><input value={quickTitle} onChange={event => setQuickTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) captureQuickEntry() }} placeholder={captureMode === 'task' ? 'Nouvelle tâche…' : 'Une idée, une note…'} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-base font-bold text-white outline-none focus:border-amber-500" />{captureMode === 'note' && <textarea value={quickNotes} onChange={event => setQuickNotes(event.target.value)} rows={2} placeholder="Détails facultatifs…" className="mt-2 w-full resize-y rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-200 outline-none focus:border-amber-500" />}</div>
-            <select value={quickProjectId} onChange={event => setQuickProjectId(event.target.value)} className="h-11 min-w-0 rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-bold text-white"><option value="">{captureMode === 'task' ? 'Choisir un projet' : 'Niveau principal'}</option>{projects.nodes.filter(node => node.status !== 'done').map(node => <option key={node.id} value={node.id}>{node.title}</option>)}</select>
-            <input type="date" aria-label="Échéance" value={quickDueDate} onChange={event => setQuickDueDate(event.target.value)} className="h-11 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-white" />
-            <button onClick={captureQuickEntry} disabled={!quickTitle.trim() || (captureMode === 'task' && !quickProjectId)} className="h-11 rounded-xl bg-amber-500 px-4 text-xs font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"><Plus className="mr-1 inline" size={15} /> Ajouter</button>
+      <section className="projects-capture border-b px-3 py-4 lg:px-8">
+        <div className="capture-shell mx-auto max-w-6xl">
+          <div className="capture-heading"><span><Sparkles size={17} /></span><div><b>Capture rapide</b><small>Notez d’abord, organisez ensuite.</small></div></div>
+          <div className="capture-body">
+            <div className="capture-tabs flex rounded-xl border p-1">
+              <button onClick={() => setCaptureMode('note')} className={captureMode === 'note' ? 'active' : ''}><FilePlus2 size={15} /> Note</button>
+              <button onClick={() => setCaptureMode('task')} className={captureMode === 'task' ? 'active' : ''}><ListTodo size={15} /> Tâche</button>
+            </div>
+            <div className="capture-fields grid min-w-0 flex-1 gap-2 sm:grid-cols-[1fr_210px_140px_auto]">
+              <div className="voice-input min-w-0"><input value={quickTitle} onChange={event => setQuickTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) captureQuickEntry() }} placeholder={listening ? 'Je vous écoute…' : captureMode === 'task' ? 'Que faut-il faire ?' : 'Quelle idée voulez-vous garder ?'} /><button onClick={toggleVoiceCapture} className={listening ? 'listening' : ''} aria-label={listening ? 'Arrêter la dictée' : 'Dicter une note'} title="Dicter avec le micro">{listening ? <MicOff size={18} /> : <Mic size={18} />}</button>{captureMode === 'note' && <textarea value={quickNotes} onChange={event => setQuickNotes(event.target.value)} rows={2} placeholder="Contexte, lien ou détail facultatif…" />}</div>
+              <select value={quickProjectId} onChange={event => setQuickProjectId(event.target.value)}><option value="">{captureMode === 'task' ? 'Choisir un projet' : 'Boîte d’entrée'}</option>{projects.nodes.filter(node => node.status !== 'done').map(node => <option key={node.id} value={node.id}>{node.title}</option>)}</select>
+              <input type="date" aria-label="Échéance" value={quickDueDate} onChange={event => setQuickDueDate(event.target.value)} />
+              <button onClick={captureQuickEntry} disabled={!quickTitle.trim() || (captureMode === 'task' && !quickProjectId)} className="capture-submit"><ArrowRight size={17} /> Capturer</button>
+            </div>
           </div>
         </div>
-        {(cloudMessage || drive.error) && <p className="mx-auto mt-2 max-w-6xl text-[10px] font-bold text-amber-300">{cloudMessage || drive.error}</p>}
+        {(voiceMessage || cloudMessage || drive.error) && <p className="mx-auto mt-2 max-w-6xl text-[11px] font-bold text-amber-700">{listening ? voiceMessage : cloudMessage || drive.error || voiceMessage}</p>}
       </section>
 
       <div className="relative flex-1 overflow-auto">
-        {viewMode === 'map' ? (
+        {viewMode === 'overview' ? (
+          <div className={`projects-overview mx-auto grid max-w-6xl gap-4 p-4 lg:grid-cols-[1.15fr_.85fr] lg:p-6 ${selected ? 'sm:pr-[390px]' : ''}`}>
+            <section className="overview-card inbox-card">
+              <header><span className="overview-icon blue"><Inbox size={19} /></span><div><p className="overview-kicker">BOÎTE D’ENTRÉE</p><h2>À clarifier</h2></div><span className="count-badge">{inboxNode?.tasks?.filter(task => !task.done).length ?? 0}</span></header>
+              {inboxNode?.tasks?.length ? <div className="overview-list">{inboxNode.tasks.slice(0, 7).map(task => <div key={task.id} className={task.done ? 'done' : ''}><button onClick={() => toggleTask(inboxNode.id, task.id)} aria-label={task.done ? `Réactiver ${task.title}` : `Cocher ${task.title}`}>{task.done ? <CheckSquare2 size={18} /> : <Square size={18} />}</button><button onClick={() => setSelectedId(inboxNode.id)}><b>{task.title}</b>{task.details && <small>{task.details}</small>}</button></div>)}</div> : <div className="overview-empty"><Inbox size={31} /><b>Votre esprit peut se vider ici.</b><p>Capturez une idée au-dessus ou créez votre boîte vocale Google.</p></div>}
+              <footer>{inboxNode && <button onClick={() => setSelectedId(inboxNode.id)}>Ouvrir la boîte d’entrée <ArrowRight size={14} /></button>}<button className="google-link" onClick={() => void openOrCreateVoiceInbox()} disabled={cloudBusy === 'voice-inbox'}>{cloudBusy === 'voice-inbox' ? <LoaderCircle className="animate-spin" size={14} /> : <Mic size={14} />}{inboxNode?.sourceUrl ? 'Dicter dans Google Docs' : 'Créer ma boîte vocale'}</button></footer>
+            </section>
+
+            <section className="overview-card focus-card">
+              <header><span className="overview-icon amber"><CalendarRange size={19} /></span><div><p className="overview-kicker">PROCHAINE ÉTAPE</p><h2>À faire bientôt</h2></div><span className="count-badge">{dueSoon.length}</span></header>
+              {dueSoon.length ? <div className="overview-list">{dueSoon.slice(0, 6).map(({ node, task }) => <div key={task.id}><button onClick={() => toggleTask(node.id, task.id)}><Square size={18} /></button><button onClick={() => setSelectedId(node.id)}><b>{task.title}</b><small>{node.title} · {new Date(`${task.dueDate}T12:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</small></button></div>)}</div> : <div className="overview-empty compact"><CheckSquare2 size={29} /><b>Rien d’urgent cette semaine.</b><p>Ajoutez une échéance à une tâche pour la retrouver ici.</p></div>}
+              <footer><button onClick={() => chooseView('gantt')}>Voir le planning <ArrowRight size={14} /></button></footer>
+            </section>
+
+            <section className="overview-card projects-card lg:col-span-2">
+              <header><span className="overview-icon green"><Network size={19} /></span><div><p className="overview-kicker">VUE D’ENSEMBLE</p><h2>Vos projets et idées</h2></div><button className="header-link" onClick={() => chooseView('list')}>Tout voir <ArrowRight size={14} /></button></header>
+              {projects.nodes.filter(node => node.status !== 'done' && googleDocTaskKey(node.title) !== 'notes a la volee').length ? <div className="project-summary-grid">{projects.nodes.filter(node => node.status !== 'done' && googleDocTaskKey(node.title) !== 'notes a la volee').slice(0, 6).map(node => { const progress = completionFor(node); return <button key={node.id} onClick={() => setSelectedId(node.id)} className="project-summary"><span className="project-color" style={{ backgroundColor: node.color ?? '#d59b4c' }} /><span className="project-summary-main"><b>{node.title}</b><small>{node.notes || `${node.tasks?.length ?? 0} tâche${(node.tasks?.length ?? 0) > 1 ? 's' : ''}`}</small><span><i style={{ width: `${progress}%` }} /></span></span><em>{progress}%</em></button> })}</div> : <div className="overview-empty compact"><GitBranch size={30} /><b>Commencez avec un projet concret.</b><p>Donnez-lui un nom, puis ajoutez des notes, tâches et branches au fil de vos idées.</p><button onClick={() => addNode()}>Créer mon premier projet</button></div>}
+            </section>
+
+            <section className="google-workflow lg:col-span-2">
+              <div className="google-mark"><span /> <span /> <span /> <span /></div><div className="min-w-0 flex-1"><p className="overview-kicker">CAPTURE VOCALE AVEC GOOGLE</p><h2>Une seule boîte d’entrée, partout.</h2><p>Sur Android, ouvrez le Google Doc « Notes à la volée », utilisez le micro du clavier et dictez une idée par ligne. Dans le Hub, cliquez sur Google Docs pour actualiser : chaque ligne devient un élément séparé, que vous pouvez cocher puis classer.</p></div><div className="workflow-steps"><span><b>1</b> Dicter</span><ArrowRight size={14} /><span><b>2</b> Importer</span><ArrowRight size={14} /><span><b>3</b> Organiser</span></div><button onClick={() => void openOrCreateVoiceInbox()} disabled={cloudBusy === 'voice-inbox'}>{inboxNode?.sourceUrl ? 'Ouvrir ma boîte vocale' : 'Configurer en 1 clic'} <ExternalLink size={14} /></button>
+            </section>
+          </div>
+        ) : viewMode === 'map' ? (
           <div ref={canvasRef} onPointerMove={moveNode} onPointerUp={finishDrag} onPointerCancel={finishDrag} style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
             className="projects-map relative min-h-[720px] min-w-[1100px] overflow-hidden bg-[radial-gradient(circle_at_1px_1px,#475569_1px,transparent_0)] [background-size:24px_24px]">
             {projects.nodes.length === 0 && <div className="absolute inset-0 grid place-items-center p-6 text-center"><div><GitBranch className="mx-auto text-amber-400" size={42} /><h2 className="mt-4 text-2xl font-black">Posez votre première idée</h2><p className="mt-2 text-sm text-slate-500">Créez un noyau central, puis faites rayonner ses branches.</p><button onClick={() => addNode()} className="mt-5 rounded-xl bg-amber-500 px-5 py-3 font-black text-slate-950">Créer le noyau</button></div></div>}
