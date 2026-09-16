@@ -117,3 +117,27 @@
 @media(max-width:720px){.tip-paths{grid-template-columns:1fr}.tip-paths>div{grid-column:auto}.timer-overlay{justify-content:flex-start;padding:92px 0 34px}.timer-circle{width:min(270px,70vw);height:min(270px,70vw)}.timer-circle strong{font-size:48px}.timer-guidance{font-size:15px}.background-panel{margin-top:14px}.ambience-options{grid-template-columns:repeat(3,1fr)}.session-audio-controls{padding:0 18px;margin-top:10px}.session-audio-controls button{flex:1 1 210px}}
 
 }
+.presence-root .voice-panel { width: min(440px, 100%); box-sizing: border-box; margin: 16px auto; padding: 18px; border: 1px solid #c6d7d0; border-radius: 18px; background: #f4f9f6; color: #254b41; text-align: left; }
+.presence-root .voice-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.presence-root .voice-panel label, .presence-root .background-volume { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 14px 0; font-size: 14px; }
+.presence-root .voice-panel input, .presence-root .background-volume input { max-width: 100%; width: 160px; accent-color: #376958; }
+.presence-root .voice-panel select { min-width: 0; width: 100%; padding: 10px; border: 1px solid #abc5b9; border-radius: 8px; font: inherit; background: white; color: #254b41; }
+.presence-root .voice-panel button { padding: 10px 12px; border: 1px solid #abc5b9; border-radius: 10px; background: white; color: #254b41; font-size: 14px; cursor: pointer; }
+.presence-root .voice-panel button:disabled { opacity: .5; cursor: default; }
+.presence-root .voice-panel small { display: block; margin-top: 10px; font-size: 13px; line-height: 1.5; }
+.presence-root .voice-panel [role=alert] { color: #8a3428; font-size: 14px; }
+.presence-root .timer-overlay { padding-left: 18px; padding-right: 18px; }
+.presence-root .timer-overlay > * { flex-shrink: 0; }
+.presence-root .timer-overlay::before, .presence-root .timer-overlay::after { pointer-events: none; }
+.presence-root .hero-card { height: auto; min-height: 320px; }
+.presence-root .hero-copy { padding-bottom: 36px; }
+@media (max-width: 720px) {
+  .presence-root .hero-copy { padding-bottom: 236px; }
+}
+.presence-root { min-width: 0; width: 100%; }
+.presence-root > main { margin-left: 248px; min-width: 0; }
+.presence-root .timer-overlay { justify-content: flex-start; padding-top: 92px; padding-bottom: 34px; overflow-x: hidden; }
+.presence-root .library-card { min-width: 0; }
+.presence-root .library-card > div:last-child { min-width: 0; }
+@media (max-width: 1050px) { .presence-root > main { margin-left: 210px; } }
+@media (max-width: 720px) { .presence-root > main { margin-left: 0; padding-bottom: 76px; } }

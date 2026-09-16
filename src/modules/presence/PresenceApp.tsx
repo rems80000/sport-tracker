@@ -2,18 +2,21 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { LIFE_HUB_PRESENCE_IMPORTED_EVENT, loadPresenceSnapshot, savePresenceData } from '../../cloud/moduleStorage'
 import { loadPresenceAudio, removePresenceAudio, savePresenceAudio } from './presenceAudio'
 import type { PresenceAudioSlot } from './presenceAudio'
+import { guidedSessions } from './guidedSessions'
+import { GuidancePlayer } from './GuidancePlayer'
 import './presence.css'
 
 type Page = 'today' | 'practice' | 'journey' | 'tips' | 'settings'
 type Ambience = 'rain' | 'waves' | 'forest' | 'fire' | 'stream' | 'night'
 type BackgroundChoice = Ambience | 'custom'
 type GuidanceStep = { at: number; text: string }
-type Session = { id: string; title: string; subtitle: string; description: string; minutes: number; tone: string; icon: string; audio?: string; ambience: Ambience; guidance: GuidanceStep[] }
+type Session = { id: string; title: string; subtitle: string; description: string; minutes: number; tone: string; icon: string; audio?: string; voiceGuided?: boolean; ambience: Ambience; guidance: GuidanceStep[] }
 type HistoryItem = { id: number; title: string; minutes: number; date: string }
 type AudioChoice = { name: string; url: string } | null
 type WakeLockHandle = { released: boolean; release: () => Promise<void> }
 
 const sessions: Session[] = [
+  ...guidedSessions,
   { id: 'calm', title: 'Respiration guidée', subtitle: 'Revenir au souffle', description: 'Une séance audio simple pour ralentir le rythme et retrouver un peu d’espace intérieur.', minutes: 5, tone: 'sage', icon: '♫', audio: 'meditation.m4a', ambience: 'forest', guidance: [{ at: 0, text: 'Installez-vous confortablement et laissez le souffle venir.' }, { at: 90, text: 'Allongez doucement l’expiration, sans forcer.' }, { at: 210, text: 'Observez ce qui est plus calme maintenant.' }] },
   { id: 'body', title: 'Scan corporel express', subtitle: 'Relâcher les tensions', description: 'Parcourez le corps de la tête aux pieds pour dénouer les tensions en huit minutes.', minutes: 8, tone: 'sand', icon: '◌', ambience: 'stream', guidance: [{ at: 0, text: 'Sentez les points de contact du corps avec le support.' }, { at: 90, text: 'Desserrez le front, la mâchoire et les épaules.' }, { at: 220, text: 'Relâchez le ventre, les jambes, puis les pieds.' }, { at: 390, text: 'Accueillez le corps dans son ensemble.' }] },
   { id: 'focus', title: 'Ancrage et concentration', subtitle: 'Clarifier son attention', description: 'Un recentrage guidé sur les sons et les sensations avant une tâche importante.', minutes: 7, tone: 'sage', icon: '✦', ambience: 'forest', guidance: [{ at: 0, text: 'Choisissez un point d’ancrage : souffle, sons ou contact des pieds.' }, { at: 120, text: 'Quand l’esprit part, revenez simplement à votre ancre.' }, { at: 300, text: 'Choisissez maintenant la prochaine action utile.' }] },
@@ -79,7 +82,9 @@ function createAmbience(kind: Ambience) {
   filter.type = kind === 'rain' || kind === 'stream' ? 'highpass' : 'lowpass'
   filter.frequency.value = kind === 'rain' ? 1100 : kind === 'stream' ? 520 : kind === 'waves' ? 650 : kind === 'fire' ? 420 : kind === 'night' ? 260 : 1250
   volume.gain.value = kind === 'rain' ? 0.045 : kind === 'night' ? 0.035 : kind === 'fire' ? 0.055 : 0.075
-  source.connect(filter).connect(volume).connect(context.destination)
+  const master = context.createGain()
+  master.connect(context.destination)
+  source.connect(filter).connect(volume).connect(master)
   if (kind === 'waves' || kind === 'stream') {
     const lfo = context.createOscillator()
     const depth = context.createGain()
@@ -95,10 +100,13 @@ function createAmbience(kind: Ambience) {
     tone.type = 'sine'
     tone.frequency.value = 174
     toneVolume.gain.value = 0.008
-    tone.connect(toneVolume).connect(context.destination)
+    tone.connect(toneVolume).connect(master)
     tone.start()
   }
-  return context
+  return {
+    close: () => context.close(), suspend: () => context.suspend(), resume: () => context.resume(),
+    setVolume: (value: number) => master.gain.setTargetAtTime(value, context.currentTime, 0.15),
+  }
 }
 
 function formatTime(value: number) {
@@ -125,14 +133,62 @@ export function PresenceApp() {
     return ambienceOptions.some(option => option.id === saved) ? saved as Ambience : 'forest'
   })
   const [keepAwake, setKeepAwake] = useState(true)
+  const [voiceEnabled, setVoiceEnabled] = useState(true)
+  const [voiceVolume, setVoiceVolume] = useState(0.85)
+  const [backgroundVolume, setBackgroundVolume] = useState(0.6)
+  const [speaking, setSpeaking] = useState(false)
+  const [voiceError, setVoiceError] = useState('')
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [voiceURI, setVoiceURI] = useState('')
+  const guidanceRef = useRef<GuidancePlayer | null>(null)
   const completedRef = useRef(false)
   const voiceRef = useRef<HTMLAudioElement>(null)
   const relaxRef = useRef<HTMLAudioElement>(null)
   const voiceEndedRef = useRef(false)
-  const ambienceRef = useRef<AudioContext | null>(null)
+  const ambienceRef = useRef<ReturnType<typeof createAmbience> | null>(null)
   const endAtRef = useRef<number | null>(null)
   const wakeLockRef = useRef<WakeLockHandle | null>(null)
   const backgroundAllowedRef = useRef(true)
+
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return
+    const synth = window.speechSynthesis
+    guidanceRef.current = new GuidancePlayer(synth, (isSpeaking, error) => {
+      setSpeaking(isSpeaking)
+      if (error) setVoiceError(error)
+    })
+    const refresh = () => setVoices(synth.getVoices().filter(voice => /^fr(?:-|_)/i.test(voice.lang) || voice.lang === 'fr'))
+    refresh()
+    synth.addEventListener('voiceschanged', refresh)
+    return () => {
+      synth.removeEventListener('voiceschanged', refresh)
+      guidanceRef.current?.stop()
+      guidanceRef.current = null
+      voiceRef.current?.pause()
+      relaxRef.current?.pause()
+      if (ambienceRef.current) void ambienceRef.current.close()
+      ambienceRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (guidanceRef.current) {
+      guidanceRef.current.volume = voiceVolume
+      guidanceRef.current.enabled = voiceEnabled
+      guidanceRef.current.voiceURI = voiceURI
+    }
+    if (voiceRef.current) voiceRef.current.volume = voiceVolume
+  }, [voiceVolume, voiceEnabled, voiceURI])
+
+  useEffect(() => {
+    const level = backgroundVolume * (speaking ? 0.25 : 1)
+    ambienceRef.current?.setVolume(level)
+    if (relaxRef.current) relaxRef.current.volume = level
+  }, [backgroundVolume, speaking, backgroundPlaying, ambience])
+
+  useEffect(() => {
+    if (active && running && selected.voiceGuided && seconds > 0) guidanceRef.current?.tick(selected.minutes * 60 - seconds)
+  }, [active, running, selected, seconds])
 
   useEffect(() => {
     let cancelled = false
@@ -195,6 +251,7 @@ export function PresenceApp() {
   useEffect(() => {
     if (seconds !== 0 || completedRef.current) return
     completedRef.current = true
+    guidanceRef.current?.stop()
     endAtRef.current = null
     setRunning(false)
     ;[voiceRef.current, relaxRef.current].forEach(audio => {
@@ -207,8 +264,8 @@ export function PresenceApp() {
       ambienceRef.current = null
     }
     setBackgroundPlaying(false)
-    if (sound) playGong()
-    if ('vibrate' in navigator) navigator.vibrate([300, 150, 300])
+    if (sound && selected.id !== 'voice-night') playGong()
+    if (selected.id !== 'voice-night' && 'vibrate' in navigator) navigator.vibrate([300, 150, 300])
     const item = { id: Date.now(), title: selected.title, minutes: selected.minutes, date: new Date().toISOString() }
     setHistory((current) => {
       const next = [item, ...current].slice(0, 20)
@@ -222,6 +279,8 @@ export function PresenceApp() {
 
   function begin(session = selected) {
     completedRef.current = false
+    setVoiceError('')
+    guidanceRef.current?.stop()
     backgroundAllowedRef.current = true
     setSelected(session)
     setSeconds(session.minutes * 60)
@@ -236,11 +295,16 @@ export function PresenceApp() {
       audio.pause()
       audio.currentTime = 0
     })
-    if (voiceRef.current && session.audio) void voiceRef.current.play().catch(() => undefined)
+    if (session.voiceGuided) {
+      if (!guidanceRef.current) setVoiceError('Le guidage vocal n’est pas disponible dans ce navigateur. Essayez Chrome ou Edge.')
+      else guidanceRef.current.start(session.guidance)
+    }
+    if (voiceEnabled && voiceRef.current && session.audio) void voiceRef.current.play().catch(() => undefined)
     if (!session.audio) startBackground(ambience)
   }
 
   function closeTimer() {
+    guidanceRef.current?.stop()
     setActive(false)
     setRunning(false)
     endAtRef.current = null
@@ -261,7 +325,8 @@ export function PresenceApp() {
     const next = !running
     if (next) {
       endAtRef.current = Date.now() + seconds * 1000
-      if (selected.audio && !voiceEndedRef.current) void voiceRef.current?.play().catch(() => undefined)
+      if (selected.voiceGuided) guidanceRef.current?.resume(selected.minutes * 60 - seconds)
+      if (voiceEnabled && selected.audio && !voiceEndedRef.current) void voiceRef.current?.play().catch(() => undefined)
       if (backgroundPlaying) {
         if (relaxRef.current) void relaxRef.current.play().catch(() => undefined)
         if (ambienceRef.current) void ambienceRef.current.resume()
@@ -269,11 +334,21 @@ export function PresenceApp() {
     } else {
       if (endAtRef.current) setSeconds(Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000)))
       endAtRef.current = null
+      guidanceRef.current?.pause()
       voiceRef.current?.pause()
       relaxRef.current?.pause()
       if (ambienceRef.current) void ambienceRef.current.suspend()
     }
     setRunning(next)
+  }
+
+  function toggleVoice() {
+    const next = !voiceEnabled
+    setVoiceEnabled(next)
+    if (guidanceRef.current) guidanceRef.current.enabled = next
+    if (!next) { guidanceRef.current?.mute(); voiceRef.current?.pause() }
+    else if (running && selected.voiceGuided) { setVoiceError(''); guidanceRef.current?.tick(selected.minutes * 60 - seconds, true) }
+    else if (running && selected.audio && !voiceEndedRef.current) void voiceRef.current?.play().catch(() => setVoiceError('Impossible de lire votre audio.'))
   }
 
   function choose(session: Session) {
@@ -293,12 +368,13 @@ export function PresenceApp() {
       ambienceRef.current = null
     }
     if (choice === 'custom' && relaxAudio && relaxRef.current) {
-      relaxRef.current.volume = 0.38
+      relaxRef.current.volume = backgroundVolume * (speaking ? 0.25 : 1)
       void relaxRef.current.play().catch(() => undefined)
       setBackgroundPlaying(true)
       return
     }
     ambienceRef.current = createAmbience(choice === 'custom' ? 'forest' : choice)
+    ambienceRef.current.setVolume(backgroundVolume * (speaking ? 0.25 : 1))
     setBackgroundPlaying(true)
   }
 
@@ -378,7 +454,7 @@ export function PresenceApp() {
 
       <nav className="mobile-nav" aria-label="Navigation mobile">{nav.map((item) => <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => setPage(item.id)}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav>
 
-      {active && <TimerModal session={selected} seconds={seconds} progress={progress} running={running} breathing={breathing} completed={seconds === 0} backgroundPlaying={backgroundPlaying} ambience={ambience} hasCustomBackground={Boolean(relaxAudio)} keepAwake={keepAwake} onToggle={toggleTimer} onToggleBackground={toggleBackground} onChangeAmbience={changeAmbience} onToggleKeepAwake={() => setKeepAwake(value => !value)} onClose={closeTimer} onRestart={() => begin(selected)} />}
+      {active && <TimerModal session={selected} seconds={seconds} progress={progress} running={running} breathing={breathing} completed={seconds === 0} backgroundPlaying={backgroundPlaying} ambience={ambience} hasCustomBackground={Boolean(relaxAudio)} keepAwake={keepAwake} onToggle={toggleTimer} onToggleBackground={toggleBackground} onChangeAmbience={changeAmbience} onToggleKeepAwake={() => setKeepAwake(value => !value)} onClose={closeTimer} onRestart={() => begin(selected)} voiceEnabled={voiceEnabled} voiceVolume={voiceVolume} backgroundVolume={backgroundVolume} speaking={speaking} voiceError={voiceError} voices={voices} voiceURI={voiceURI} onVoiceURI={setVoiceURI} onToggleVoice={toggleVoice} onVoiceVolume={setVoiceVolume} onBackgroundVolume={setBackgroundVolume} onReplay={() => { setVoiceError(''); guidanceRef.current?.tick(selected.minutes * 60 - seconds, true) }} />}
     </div>
   )
 }
@@ -400,7 +476,7 @@ function Today({ selected, history, totalMinutes, onBegin, onChoose, onPractice 
 }
 
 function Practice({ selected, onChoose, onBegin }: { selected: Session; onChoose: (s: Session) => void; onBegin: (s: Session) => void }) {
-  return <div className="page practice-page"><p className="eyebrow">BIBLIOTHÈQUE</p><h1>Choisissez votre pratique.</h1><p className="lead">Sept séances guidées de 5 à 10 minutes, selon votre besoin du moment.</p><div className="library-grid">{sessions.map(s => <article key={s.id} className={`library-card ${s.tone} ${selected.id === s.id ? 'selected' : ''}`} onClick={() => onChoose(s)}><div className="large-icon">{s.icon}</div><div><p className="eyebrow">MÉDITATION GUIDÉE · {s.minutes} MIN</p><h2>{s.title}</h2><p>{s.description}</p><button className="round-play" aria-label={`Commencer ${s.title}`} onClick={(e) => { e.stopPropagation(); onBegin(s) }}>▶</button></div></article>)}</div></div>
+  return <div className="page practice-page"><p className="eyebrow">BIBLIOTHÈQUE</p><h1>Choisissez votre pratique.</h1><p className="lead">Cinq nouvelles séances avec guide vocal et silences, de 5 à 10 minutes. Vos pratiques habituelles restent disponibles.</p><div className="library-grid">{sessions.map(s => <article key={s.id} className={`library-card ${s.tone} ${selected.id === s.id ? 'selected' : ''}`} onClick={() => onChoose(s)}><div className="large-icon">{s.icon}</div><div><p className="eyebrow">{s.voiceGuided ? 'GUIDE VOCAL' : s.audio ? 'AUDIO PERSONNEL' : 'REPÈRES À LIRE'} · {s.minutes} MIN</p><h2>{s.title}</h2><p>{s.description}</p><button className="round-play" aria-label={`Commencer ${s.title}`} onClick={(e) => { e.stopPropagation(); onBegin(s) }}>▶</button></div></article>)}</div></div>
 }
 
 function Journey({ history, totalMinutes }: { history: HistoryItem[]; totalMinutes: number }) {
@@ -434,7 +510,7 @@ function Tips() {
 }
 
 function Settings({ sound, breathing, voiceAudio, relaxAudio, setSound, setBreathing, onReplaceAudio, onResetAudio, clearHistory }: { sound: boolean; breathing: boolean; voiceAudio: AudioChoice; relaxAudio: AudioChoice; setSound: (v: boolean) => void; setBreathing: (v: boolean) => void; onReplaceAudio: (slot: PresenceAudioSlot, file: File) => Promise<void>; onResetAudio: (slot: PresenceAudioSlot) => Promise<void>; clearHistory: () => void }) {
-  return <div className="page settings-page"><p className="eyebrow">VOTRE ESPACE</p><h1>Réglages</h1><p className="lead">Créez une expérience qui vous ressemble.</p><section className="settings-card"><h2>Pendant la pratique</h2><Setting label="Sons de début et de fin" detail="Un gong doux accompagne la séance" value={sound} onChange={setSound}/><Setting label="Guide de respiration" detail="Afficher le rythme inspirer / expirer" value={breathing} onChange={setBreathing}/></section><section className="settings-card audio-settings"><h2>Votre séance audio</h2><p className="audio-help">La voix personnalisée remplace la méditation intégrée. Votre bande relaxante apparaît comme choix « Mon audio » pendant chaque séance.</p><AudioFileRow slot="voice" label="Voix guidée" fileName={voiceAudio?.name ?? 'Méditation.m4a · fichier intégré'} custom={Boolean(voiceAudio)} onReplace={onReplaceAudio} onReset={onResetAudio}/><AudioFileRow slot="relax" label="Bande son relaxante" fileName={relaxAudio?.name ?? 'Aucune bande son sélectionnée'} custom={Boolean(relaxAudio)} onReplace={onReplaceAudio} onReset={onResetAudio}/><small className="audio-device-note">Les fichiers audio restent sur cet appareil pour préserver leur confidentialité. L’historique, lui, continue d’être synchronisé sur Drive.</small></section><section className="settings-card"><h2>Vos données</h2><div className="setting-row"><div><b>Historique Life Hub</b><small>Synchronisé avec les autres modules via Google Drive.</small></div><button className="danger" onClick={clearHistory}>Effacer</button></div></section><section className="about"><span className="brand-mark"><i/><i/><i/></span><h2>présent</h2><p>Prendre soin de son esprit, simplement.</p><small>Module Life Hub 1.2</small></section></div>
+  return <div className="page settings-page"><p className="eyebrow">VOTRE ESPACE</p><h1>Réglages</h1><p className="lead">Créez une expérience qui vous ressemble.</p><section className="settings-card"><h2>Pendant la pratique</h2><Setting label="Sons de début et de fin" detail="Un gong doux accompagne la séance" value={sound} onChange={setSound}/><Setting label="Guide de respiration" detail="Afficher le rythme inspirer / expirer" value={breathing} onChange={setBreathing}/></section><section className="settings-card audio-settings"><h2>Votre séance audio</h2><p className="audio-help">La voix personnalisée remplace uniquement l’audio de « Respiration guidée ». Les cinq nouvelles séances gardent leur propre guide vocal. Votre bande relaxante apparaît comme choix « Mon audio » pendant chaque séance.</p><AudioFileRow slot="voice" label="Voix guidée" fileName={voiceAudio?.name ?? 'Méditation.m4a · fichier intégré'} custom={Boolean(voiceAudio)} onReplace={onReplaceAudio} onReset={onResetAudio}/><AudioFileRow slot="relax" label="Bande son relaxante" fileName={relaxAudio?.name ?? 'Aucune bande son sélectionnée'} custom={Boolean(relaxAudio)} onReplace={onReplaceAudio} onReset={onResetAudio}/><small className="audio-device-note">Les fichiers audio restent sur cet appareil pour préserver leur confidentialité. L’historique, lui, continue d’être synchronisé sur Drive.</small></section><section className="settings-card"><h2>Vos données</h2><div className="setting-row"><div><b>Historique Life Hub</b><small>Synchronisé avec les autres modules via Google Drive.</small></div><button className="danger" onClick={clearHistory}>Effacer</button></div></section><section className="about"><span className="brand-mark"><i/><i/><i/></span><h2>présent</h2><p>Prendre soin de son esprit, simplement.</p><small>Module Life Hub 1.2</small></section></div>
 }
 
 function AudioFileRow({ slot, label, fileName, custom, onReplace, onReset }: { slot: PresenceAudioSlot; label: string; fileName: string; custom: boolean; onReplace: (slot: PresenceAudioSlot, file: File) => Promise<void>; onReset: (slot: PresenceAudioSlot) => Promise<void> }) {
@@ -443,11 +519,17 @@ function AudioFileRow({ slot, label, fileName, custom, onReplace, onReset }: { s
 
 function Setting({ label, detail, value, onChange }: { label: string; detail: string; value: boolean; onChange: (v: boolean) => void }) { return <div className="setting-row"><div><b>{label}</b><small>{detail}</small></div><button role="switch" aria-checked={value} className={value ? 'switch on' : 'switch'} onClick={() => onChange(!value)}><span /></button></div> }
 
-function TimerModal({ session, seconds, progress, running, breathing, completed, backgroundPlaying, ambience, hasCustomBackground, keepAwake, onToggle, onToggleBackground, onChangeAmbience, onToggleKeepAwake, onClose, onRestart }: { session: Session; seconds: number; progress: number; running: boolean; breathing: boolean; completed: boolean; backgroundPlaying: boolean; ambience: BackgroundChoice; hasCustomBackground: boolean; keepAwake: boolean; onToggle: () => void; onToggleBackground: () => void; onChangeAmbience: (choice: BackgroundChoice) => void; onToggleKeepAwake: () => void; onClose: () => void; onRestart: () => void }) {
+function TimerModal({ session, seconds, progress, running, breathing, completed, backgroundPlaying, ambience, hasCustomBackground, keepAwake, onToggle, onToggleBackground, onChangeAmbience, onToggleKeepAwake, onClose, onRestart, voiceEnabled, voiceVolume, backgroundVolume, speaking, voiceError, voices, voiceURI, onVoiceURI, onToggleVoice, onVoiceVolume, onBackgroundVolume, onReplay }: { voiceEnabled: boolean; voiceVolume: number; backgroundVolume: number; speaking: boolean; voiceError: string; voices: SpeechSynthesisVoice[]; voiceURI: string; onVoiceURI: (value: string) => void; onToggleVoice: () => void; onVoiceVolume: (value: number) => void; onBackgroundVolume: (value: number) => void; onReplay: () => void; session: Session; seconds: number; progress: number; running: boolean; breathing: boolean; completed: boolean; backgroundPlaying: boolean; ambience: BackgroundChoice; hasCustomBackground: boolean; keepAwake: boolean; onToggle: () => void; onToggleBackground: () => void; onChangeAmbience: (choice: BackgroundChoice) => void; onToggleKeepAwake: () => void; onClose: () => void; onRestart: () => void }) {
   const radius = 134
   const circumference = 2 * Math.PI * radius
   const elapsed = session.minutes * 60 - seconds
   const guidance = [...session.guidance].reverse().find(step => elapsed >= step.at)?.text ?? session.description
   const choices = hasCustomBackground ? [...ambienceOptions, { id: 'custom' as const, label: 'Mon audio', icon: '♫' }] : ambienceOptions
-  return <div className="timer-overlay"><button className="close" onClick={onClose} aria-label="Fermer">×</button><div className="timer-brand"><span className="brand-mark"><i/><i/><i/></span><span>présent</span></div>{completed ? <div className="complete"><span>✦</span><p className="eyebrow">SÉANCE TERMINÉE</p><h1>Merci d'avoir pris ce temps.</h1><p>Emportez ce calme avec vous.</p><div><button className="secondary" onClick={onRestart}>Recommencer</button><button className="primary" onClick={onClose}>Terminer</button></div></div> : <><div className={running && breathing ? 'timer-circle breathing' : 'timer-circle'}><svg viewBox="0 0 300 300"><circle className="track" cx="150" cy="150" r={radius}/><circle className="progress" cx="150" cy="150" r={radius} style={{ strokeDasharray: circumference, strokeDashoffset: circumference * (1 - progress) }}/></svg><div><small>{breathing ? (Math.floor(seconds / 4) % 2 ? 'EXPIRER' : 'INSPIRER') : session.title.toUpperCase()}</small><strong>{formatTime(seconds)}</strong><span>{session.title}</span></div></div><p className="timer-guidance">{guidance}</p><button className="pause" onClick={onToggle} aria-label={running ? 'Mettre en pause' : 'Reprendre'}>{running ? 'Ⅱ' : '▶'}</button><section className="background-panel" aria-label="Fond sonore"><div className="background-panel-heading"><div><small>FOND SONORE</small><b>{choices.find(choice => choice.id === ambience)?.label}</b></div><button className={backgroundPlaying ? 'active' : ''} onClick={onToggleBackground}><span>{backgroundPlaying ? 'Ⅱ' : '▶'}</span>{backgroundPlaying ? 'Mettre en pause' : 'Reprendre'}</button></div><div className="ambience-options">{choices.map(choice => <button key={choice.id} className={ambience === choice.id ? 'active' : ''} onClick={() => onChangeAmbience(choice.id)} aria-pressed={ambience === choice.id}><span>{choice.icon}</span>{choice.label}</button>)}</div></section><div className="session-audio-controls"><button className={keepAwake ? 'active' : ''} onClick={onToggleKeepAwake}><span>☀</span>{keepAwake ? 'Écran maintenu actif' : 'Autoriser le verrouillage'}</button></div><p className="timer-hint">{running ? 'Le temps reste fiable même si Android suspend l’application.' : 'Votre séance est en pause.'}</p></>}</div>
+  return <div className="timer-overlay"><button className="close" onClick={onClose} aria-label="Fermer">×</button><div className="timer-brand"><span className="brand-mark"><i/><i/><i/></span><span>présent</span></div>{completed ? <div className="complete"><span>✦</span><p className="eyebrow">SÉANCE TERMINÉE</p><h1>Merci d'avoir pris ce temps.</h1><p>Emportez ce calme avec vous.</p><div><button className="secondary" onClick={onRestart}>Recommencer</button><button className="primary" onClick={onClose}>Terminer</button></div></div> : <><div className={running && breathing ? 'timer-circle breathing' : 'timer-circle'}><svg viewBox="0 0 300 300"><circle className="track" cx="150" cy="150" r={radius}/><circle className="progress" cx="150" cy="150" r={radius} style={{ strokeDasharray: circumference, strokeDashoffset: circumference * (1 - progress) }}/></svg><div><small>{breathing ? (Math.floor(seconds / 4) % 2 ? 'EXPIRER' : 'INSPIRER') : session.title.toUpperCase()}</small><strong>{formatTime(seconds)}</strong><span>{session.title}</span></div></div><p className="timer-guidance">{guidance}</p>
+      {(session.voiceGuided || session.audio) && <section className="voice-panel" aria-label="Guide vocal">
+        <div className="voice-heading"><b>{session.voiceGuided ? 'Guide vocal français' : 'Votre audio guidé'}</b><button aria-pressed={voiceEnabled} onClick={onToggleVoice}>{voiceEnabled ? 'Couper la voix' : 'Activer la voix'}</button></div>
+        <label>Volume de la voix <input type="range" min="0" max="1" step="0.05" value={voiceVolume} onChange={event => onVoiceVolume(Number(event.target.value))} /></label>
+        {session.voiceGuided && <><label>Voix <select value={voiceURI} onChange={event => onVoiceURI(event.target.value)}><option value="">Français · automatique</option>{voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}</select></label><button disabled={!running || !voiceEnabled} onClick={onReplay}>Réécouter la consigne</button><small>{!running ? 'Guidage en pause' : !voiceEnabled ? 'Voix désactivée' : speaking ? 'La voix vous accompagne…' : 'Un temps de silence entre les paroles'}</small><small>Voix de votre appareil. Gardez l’écran actif pour un guidage régulier.</small></>}
+        {voiceError && <p role="alert">{voiceError}</p>}
+      </section>}<button className="pause" onClick={onToggle} aria-label={running ? 'Mettre en pause' : 'Reprendre'}>{running ? 'Ⅱ' : '▶'}</button><section className="background-panel" aria-label="Fond sonore"><div className="background-panel-heading"><div><small>FOND SONORE</small><b>{choices.find(choice => choice.id === ambience)?.label}</b></div><button className={backgroundPlaying ? 'active' : ''} onClick={onToggleBackground}><span>{backgroundPlaying ? 'Ⅱ' : '▶'}</span>{backgroundPlaying ? 'Mettre en pause' : 'Reprendre'}</button></div><label className="background-volume">Volume de l’ambiance <input type="range" min="0" max="1" step="0.05" value={backgroundVolume} onChange={event => onBackgroundVolume(Number(event.target.value))} /></label><div className="ambience-options">{choices.map(choice => <button key={choice.id} className={ambience === choice.id ? 'active' : ''} onClick={() => onChangeAmbience(choice.id)} aria-pressed={ambience === choice.id}><span>{choice.icon}</span>{choice.label}</button>)}</div></section><div className="session-audio-controls"><button className={keepAwake ? 'active' : ''} onClick={onToggleKeepAwake}><span>☀</span>{keepAwake ? 'Écran maintenu actif' : 'Autoriser le verrouillage'}</button></div><p className="timer-hint">{running ? 'Le temps reste fiable même si Android suspend l’application.' : 'Votre séance est en pause.'}</p></>}</div>
 }
