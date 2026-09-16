@@ -185,7 +185,7 @@ function App() {
       <DriveSyncProvider>
         <TimerProvider>
           <InstallProvider>
-            <BrowserRouter>
+            <BrowserRouter basename={import.meta.env.BASE_URL}>
               <AppInner />
             </BrowserRouter>
           </InstallProvider>
