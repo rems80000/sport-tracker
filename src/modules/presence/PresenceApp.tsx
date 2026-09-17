@@ -5,6 +5,7 @@ import type { PresenceAudioSlot } from './presenceAudio'
 import { guidedSessions } from './guidedSessions'
 import { GuidancePlayer } from './GuidancePlayer'
 import './presence.css'
+import { nextTipIndex, rememberTip } from './tipRotation'
 
 type Page = 'today' | 'practice' | 'journey' | 'tips' | 'settings'
 type Ambience = 'rain' | 'waves' | 'forest' | 'fire' | 'stream' | 'night'
@@ -116,6 +117,9 @@ function formatTime(value: number) {
 }
 
 export function PresenceApp() {
+  const [tipIndex, setTipIndex] = useState(() => nextTipIndex(tips.length))
+  useEffect(() => rememberTip(tipIndex), [tipIndex])
+  const currentTip = tips[tipIndex]
   const [page, setPage] = useState<Page>('today')
   const [selected, setSelected] = useState<Session>(sessions[0])
   const [active, setActive] = useState(false)
@@ -438,7 +442,7 @@ export function PresenceApp() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-quote"><span>“</span><p>La paix vient de l'intérieur. Ne la cherchez pas à l'extérieur.</p><small>— Bouddha</small></div>
+        <div className="sidebar-quote"><span>“</span><p>{currentTip.text}</p><small>{currentTip.tag}</small></div>
         <button className="profile" onClick={() => setPage('settings')}><span>R</span><span><b>Rémy</b><small>Mon espace</small></span><i>›</i></button>
       </aside>
 
@@ -448,7 +452,7 @@ export function PresenceApp() {
         {page === 'today' && <Today selected={selected} history={history} totalMinutes={totalMinutes} onBegin={() => begin()} onChoose={choose} onPractice={() => setPage('practice')} />}
         {page === 'practice' && <Practice selected={selected} onChoose={choose} onBegin={begin} />}
         {page === 'journey' && <Journey history={history} totalMinutes={totalMinutes} />}
-        {page === 'tips' && <Tips />}
+        {page === 'tips' && <Tips index={tipIndex} onNext={() => setTipIndex(index => (index + 1) % tips.length)} />}
         {page === 'settings' && <Settings sound={sound} breathing={breathing} voiceAudio={voiceAudio} relaxAudio={relaxAudio} setSound={setSound} setBreathing={setBreathing} onReplaceAudio={replaceAudio} onResetAudio={resetAudio} clearHistory={() => { setHistory([]); savePresenceData({ history: [] }) }} />}
       </main>
 
@@ -505,8 +509,10 @@ const tipPaths = [
   { need: 'Préparer le sommeil', action: 'Sommeil · 10 min', cue: 'Expirez un peu plus longtemps que vous inspirez.' },
 ]
 
-function Tips() {
-  return <div className="page tips-page"><p className="eyebrow">PETITS REPÈRES</p><h1>Méditer, simplement.</h1><p className="lead">Des conseils concrets, sans objectif de performance.</p><section className="featured-tip"><span>1 min</span><div><p className="eyebrow">LA PAUSE EXPRESS</p><h2>Trois respirations conscientes</h2><p>Inspirez lentement par le nez. Sentez l’air entrer. Expirez sans forcer. Répétez trois fois en laissant la mâchoire et les épaules descendre.</p></div><i>≈</i></section><section className="tip-paths"><div><p className="eyebrow">CHOISIR MA SÉANCE</p><h2>Selon votre état maintenant</h2></div>{tipPaths.map(path => <article key={path.need}><b>{path.need}</b><span>{path.action}</span><small>{path.cue}</small></article>)}</section><div className="tips-grid">{tips.map(tip => <article key={tip.title}><span className="tip-icon">{tip.icon}</span><p className="eyebrow">{tip.tag}</p><h2>{tip.title}</h2><p>{tip.text}</p></article>)}</div></div>
+function Tips({ index, onNext }: { index: number; onNext: () => void }) {
+  const featured = tips[index]
+  const visibleTips = Array.from({ length: 6 }, (_, offset) => tips[(index + offset + 1) % tips.length])
+  return <div className="page tips-page"><p className="eyebrow">PETITS REPÈRES</p><h1>Méditer, simplement.</h1><p className="lead">Des conseils concrets, sans objectif de performance.</p><section className="featured-tip"><span>1 min</span><div><p className="eyebrow">{featured.tag}</p><h2>{featured.title}</h2><p>{featured.text}</p><button className="secondary tip-next" onClick={onNext}>Autre conseil →</button></div><i>≈</i></section><section className="tip-paths"><div><p className="eyebrow">CHOISIR MA SÉANCE</p><h2>Selon votre état maintenant</h2></div>{tipPaths.map(path => <article key={path.need}><b>{path.need}</b><span>{path.action}</span><small>{path.cue}</small></article>)}</section><div className="tips-grid">{visibleTips.map(tip => <article key={tip.title}><span className="tip-icon">{tip.icon}</span><p className="eyebrow">{tip.tag}</p><h2>{tip.title}</h2><p>{tip.text}</p></article>)}</div></div>
 }
 
 function Settings({ sound, breathing, voiceAudio, relaxAudio, setSound, setBreathing, onReplaceAudio, onResetAudio, clearHistory }: { sound: boolean; breathing: boolean; voiceAudio: AudioChoice; relaxAudio: AudioChoice; setSound: (v: boolean) => void; setBreathing: (v: boolean) => void; onReplaceAudio: (slot: PresenceAudioSlot, file: File) => Promise<void>; onResetAudio: (slot: PresenceAudioSlot) => Promise<void>; clearHistory: () => void }) {

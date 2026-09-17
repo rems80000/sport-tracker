@@ -5,6 +5,7 @@ const MODULES = [
   { to: '/hub', label: 'Life Hub', icon: House },
   { to: '/', label: 'TRAINHARD', icon: Dumbbell },
   { to: '/presence', label: 'Présent', icon: Brain },
+  { to: '/karate', label: 'KARATÉ', icon: Dumbbell },
   { to: '/projets', label: 'Projets', icon: Network },
 ]
 

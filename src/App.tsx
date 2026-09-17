@@ -21,6 +21,7 @@ import { Timer, Play, Pause, SkipForward } from 'lucide-react'
 import { HubSwitcher } from './components/HubSwitcher'
 import { HubHome } from './pages/HubHome'
 import { Projects } from './pages/Projects'
+import { KarateApp } from './modules/karate/KarateApp'
 import { PresenceApp } from './modules/presence/PresenceApp'
 import { SpoonPlayer } from './components/SpoonPlayer'
 import { InstallProvider } from './pwa/install'
@@ -136,7 +137,7 @@ function ClockBar() {
 function AppInner() {
   const { state } = useStore()
   const location = useLocation()
-  const isHubModule = location.pathname === '/hub' || location.pathname.startsWith('/presence') || location.pathname.startsWith('/projets')
+  const isHubModule = location.pathname === '/hub' || location.pathname.startsWith('/presence') || location.pathname === '/karate' || location.pathname.startsWith('/karate/') || location.pathname.startsWith('/projets')
   const isActiveWorkout = /^\/seance\/[^/]+/.test(location.pathname)
 
   return (
@@ -150,6 +151,7 @@ function AppInner() {
         <main className="relative min-h-0 flex-1 overflow-auto">
           <Routes>
             <Route path="/hub" element={<HubHome />} />
+            <Route path="/karate/*" element={<KarateApp />} />
             <Route path="/presence/*" element={<PresenceApp />} />
             <Route path="/projets/*" element={<Projects />} />
           </Routes>

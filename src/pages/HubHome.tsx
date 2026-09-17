@@ -33,9 +33,10 @@ export function HubHome() {
             )}
           </section>
         )}
-        <div className="mt-7 grid gap-4 md:grid-cols-3">
+        <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ModuleCard to="/" icon={Dumbbell} title="TRAINHARD" eyebrow="Corps" color="indigo" description={lastSport ? `Dernière séance : ${new Date(lastSport.date).toLocaleDateString('fr-FR')}` : 'Votre programme sportif maison'} metric={`${state.sessions.length} séances enregistrées`} />
           <ModuleCard to="/presence" icon={Brain} title="Présent" eyebrow="Esprit" color="emerald" description="Méditations guidées, respiration et ambiances" metric={`${presence.history.length} séances méditées`} />
+          <ModuleCard to="/karate" icon={Dumbbell} title="KARATÉ" eyebrow="Dojo" color="amber" description="Fiches, préparation et corrections de David" metric="6 fondamentaux · vos repères de cours" />
           <ModuleCard to="/projets" icon={Network} title="Projets" eyebrow="Direction" color="amber" description="Le futur mind mapping de tous vos projets" metric={projects.nodes.length ? `${projects.nodes.length} idées structurées` : 'Structure prête à accueillir vos cartes'} />
         </div>
         <section className="mt-6 rounded-2xl border border-slate-700/50 bg-slate-900/70 p-4 sm:p-5">

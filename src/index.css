@@ -171,3 +171,5 @@ body {
 /* Safe area support for mobile notches */
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+
+@media(max-width:1023px){.hub-topbar{overflow-x:clip}}

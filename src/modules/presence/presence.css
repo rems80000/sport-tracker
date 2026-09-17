@@ -141,3 +141,6 @@
 .presence-root .library-card > div:last-child { min-width: 0; }
 @media (max-width: 1050px) { .presence-root > main { margin-left: 210px; } }
 @media (max-width: 720px) { .presence-root > main { margin-left: 0; padding-bottom: 76px; } }
+
+.presence-root .tip-next{margin-top:14px;padding:8px 16px;font-size:12px}
+.presence-root .tips-page{overflow:auto!important}
