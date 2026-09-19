@@ -1,0 +1,271 @@
+// Shared by the web app and the Google Apps Script worker. No browser dependency.
+const META_MARKER = '\n\n--- Life Hub v1 ---\n';
+const SERVICE_LIST = 'Life Hub — service';
+const SHOPPING_LIST = 'Commissions — Life Hub';
+const NOTES_LIST = 'Notes — Life Hub';
+function unpackNotes(notes = '') {
+    const index = notes.lastIndexOf(META_MARKER);
+    if (index < 0)
+        return { text: notes };
+    try {
+        const meta = JSON.parse(notes.slice(index + META_MARKER.length));
+        if (meta.version === 1 && ['queued', 'processed', 'review', 'error'].includes(meta.state)
+            && ['task', 'event', 'shopping', 'note', 'review'].includes(meta.intent?.kind)
+            && typeof meta.intent.title === 'string'
+            && (meta.intent.items === undefined || Array.isArray(meta.intent.items) && meta.intent.items.every(item => typeof item === 'string'))
+            && ['date', 'start', 'end', 'reason'].every(key => meta.intent[key] === undefined || typeof meta.intent[key] === 'string'))
+            return { text: notes.slice(0, index), meta };
+    }
+    catch { /* Preserve unrecognized notes verbatim. */ }
+    return { text: notes };
+}
+function packNotes(text, meta) {
+    const value = text + META_MARKER + JSON.stringify(meta);
+    if (value.length > 8192)
+        throw new Error('Les détails sont trop longs pour Google Tasks. Raccourcissez-les avant le traitement.');
+    return value;
+}
+function fold(text) {
+    return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[’]/g, "'");
+}
+function parisDay(reference) {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(reference));
+    return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)?.value).join('-');
+}
+// Reject invalid dates, DST gaps and ambiguous times. All times mean Europe/Paris.
+function parisInstant(date, time) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time))
+        return null;
+    const formatter = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    const candidates = ['+01:00', '+02:00'].map(offset => new Date(`${date}T${time}:00${offset}`))
+        .filter(candidate => !Number.isNaN(candidate.getTime()) && formatter.format(candidate) === `${date} ${time}`);
+    return candidates.length === 1 ? candidates[0].toISOString() : null;
+}
+function validateIntent(intent, now = new Date().toISOString()) {
+    if (!intent.title.trim())
+        return 'Précisez le contenu de la demande.';
+    if (intent.kind === 'review')
+        return intent.reason || 'Choisissez une destination.';
+    if (intent.kind === 'shopping' && (!intent.items?.length || intent.items.length > 30 || intent.items.some(item => !item.trim() || item.length > 1024)))
+        return 'Précisez entre 1 et 30 articles, un par ligne.';
+    if (intent.kind !== 'event')
+        return null;
+    if (!intent.date || !intent.start || !intent.end)
+        return 'Précisez la date, l’heure de début et l’heure de fin du rendez-vous.';
+    const start = parisInstant(intent.date, intent.start);
+    const end = parisInstant(intent.date, intent.end);
+    if (!start || !end)
+        return 'Date ou heure invalide ou ambiguë lors du changement d’heure. Choisissez un autre horaire.';
+    if (end <= start)
+        return 'L’heure de fin doit suivre l’heure de début, le même jour.';
+    if (Date.parse(start) <= Date.parse(now))
+        return 'Ce rendez-vous est dans le passé. Précisez une date future.';
+    return null;
+}
+function classify(text, reference = new Date().toISOString()) {
+    const title = text.trim().replace(/^(?:ok google[, :]*|hey google[, :]*)/i, '')
+        .replace(/^(?:rappelle[- ]moi (?:de |d['’])?|fais[- ]moi penser (?:à |a ))/i, '').trim();
+    const normalized = fold(title);
+    const review = (reason) => ({ kind: 'review', title, reason });
+    if (!title)
+        return review('La demande est vide.');
+    if (/^(?:note\b|idee\b|garde (?:cette |l')idee\b|retiens\b|enregistre (?:une |cette )?note\b)/.test(normalized)) {
+        const content = title.replace(/^(?:note|idée|idee|garde (?:cette |l['’])idée|retiens|enregistre (?:une |cette )?note)\s*[:,-]?\s*/i, '');
+        return content ? { kind: 'note', title: content } : review('Précisez la note à conserver.');
+    }
+    if (/\b(ne pas|n'|annule|supprime|sauf|peut-etre|si jamais|tous les|toutes les|chaque)\b/.test(normalized))
+        return review('Cette demande contient une condition, une négation ou une répétition : vérifiez son traitement.');
+    if (/\b(?:et|puis)\s+(?:appeler|prendre|reserver|noter|ajouter|bloquer|acheter|rappeler)\b/.test(normalized))
+        return review('Cette phrase contient plusieurs actions. Séparez-les avant le traitement.');
+    if (/^(?:prendre|demander|fixer|reserver)\s+(?:un\s+)?(?:rendez-vous|rendez vous|rdv)\b/.test(normalized))
+        return { kind: 'task', title };
+    if (/^(?:acheter\b|courses\b|commissions\b|(?:ajoute|ajouter)\b.*\b(?:courses|commissions)\b|il faut acheter\b)/.test(normalized)) {
+        const content = title.replace(/^(?:il faut acheter|acheter|courses|commissions|ajouter|ajoute)\s*[:,-]?\s*/i, '')
+            .replace(/\s+(?:à|a|dans)\s+(?:ma |la |une )?liste (?:de |des )?(?:courses|commissions).*$/i, '').trim();
+        if (/\b(?:demain|aujourd'hui|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b|\d{1,2}\s*h\b/.test(fold(content)))
+            return review('Vérifiez les articles et leur éventuelle échéance.');
+        const items = content.split(/\s*(?:,|;|\n|\bet\b)\s*/i).map(item => item.trim()).filter(Boolean);
+        if (!items.length || items.length > 30)
+            return review('Précisez les articles à ajouter aux commissions.');
+        return { kind: 'shopping', title, items };
+    }
+    if (/\b(?:rendez-vous|rendez vous|rdv|reunion)\b|^(?:bloque|bloquer|planifie|planifier)\b/.test(normalized)) {
+        let date;
+        const iso = normalized.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+        const french = normalized.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+        if (iso)
+            date = iso[1];
+        else if (french)
+            date = `${french[3]}-${french[2].padStart(2, '0')}-${french[1].padStart(2, '0')}`;
+        else if (/\b(?:demain|aujourd'hui)\b/.test(normalized)) {
+            const day = new Date(`${parisDay(reference)}T12:00:00Z`);
+            if (/\bdemain\b/.test(normalized))
+                day.setUTCDate(day.getUTCDate() + (/\bapres-demain\b/.test(normalized) ? 2 : 1));
+            date = day.toISOString().slice(0, 10);
+        }
+        const range = normalized.match(/\bde\s+(\d{1,2})\s*(?:h|heures?|:)(\d{2})?\s+a\s+(\d{1,2})\s*(?:h|heures?|:)(\d{2})?\b/);
+        const intent = { kind: 'event', title, date,
+            start: range ? `${range[1].padStart(2, '0')}:${range[2] || '00'}` : undefined,
+            end: range ? `${range[3].padStart(2, '0')}:${range[4] || '00'}` : undefined };
+        intent.reason = validateIntent(intent, reference) || undefined;
+        return intent;
+    }
+    if (/^(?:appeler|envoyer|payer|faire|prendre|penser|preparer|ranger|nettoyer|verifier|renouveler|reserver|finir|terminer|lire|aller|recuperer|rapporter|reparer|contacter|repondre|remplir|deposer|sortir|tester)\b/.test(normalized))
+        return { kind: 'task', title };
+    return review('Choisissez Tâche, Rendez-vous, Commissions ou Note pour cette formulation.');
+}
+
+/* Google Apps Script adapter. engine.ts is bundled above this file by build-automation.mjs. */
+const SETTINGS = { sourceList: '@default', calendarId: 'primary', intervalMinutes: 5 };
+
+function installer() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) throw new Error('Un traitement est déjà en cours. Réessayez.');
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const source = Tasks.Tasklists.get(SETTINGS.sourceList);
+    const startedAt = props.getProperty('startedAt') || new Date().toISOString();
+    const shopping = ensureList_(SHOPPING_LIST);
+    const notes = ensureList_(NOTES_LIST);
+    const service = ensureList_(SERVICE_LIST);
+    props.setProperties({ sourceListId: source.id, shoppingListId: shopping.id, notesListId: notes.id, serviceListId: service.id, startedAt });
+    const triggers = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'traiterDemandes');
+    if (!triggers.length) ScriptApp.newTrigger('traiterDemandes').timeBased().everyMinutes(SETTINGS.intervalMinutes).create();
+    // Re-running setup is safe; remove only this project's redundant triggers.
+    triggers.slice(1).forEach(t => ScriptApp.deleteTrigger(t));
+    heartbeat_({ active: true, startedAt, sourceListId: source.id, sourceListTitle: source.title,
+      shoppingListId: shopping.id, notesListId: notes.id, lastRun: null, message: 'Installé. Prochain passage dans environ cinq minutes.' });
+    console.log('Life Hub activé. Les tâches nouvelles ou modifiées de « ' + source.title + ' » seront examinées toutes les cinq minutes.');
+  } finally { lock.releaseLock(); }
+}
+
+function arreter() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'traiterDemandes').forEach(t => ScriptApp.deleteTrigger(t));
+    heartbeat_({ active: false, lastRun: new Date().toISOString(), message: 'Automatisation arrêtée. Les données sont conservées.' });
+  } finally { lock.releaseLock(); }
+}
+
+function traiterDemandes() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;
+  const started = Date.now();
+  const props = PropertiesService.getScriptProperties();
+  const sourceList = props.getProperty('sourceListId');
+  let processed = 0, errors = 0;
+  try {
+    if (!sourceList) throw new Error('Exécutez installer une première fois.');
+    // No watermark: a failed item or a batch beyond the time budget is retried next run.
+    const tasks = allTasks_(sourceList, { showCompleted: false });
+    for (const task of tasks) {
+      if (Date.now() - started > 210000 || processed >= 40) break;
+      const parsed = unpackNotes(task.notes);
+      if (parsed.meta && ['processed', 'review'].includes(parsed.meta.state)) continue;
+      if (parsed.meta && parsed.meta.generatedFor) continue;
+      if (!parsed.meta && (!task.updated || task.updated < props.getProperty('startedAt'))) continue;
+      try {
+      let intent = parsed.meta ? parsed.meta.intent : classify(task.title, task.updated || new Date().toISOString());
+      const validation = parsed.meta?.plannedAt && intent.kind === 'event' ? null : validateIntent(intent);
+      if (validation) {
+        saveMeta_(sourceList, task, { version: 1, state: 'review', captureId: parsed.meta?.captureId, intent: Object.assign({}, intent, { reason: validation }) });
+        processed++;
+        continue;
+      }
+      // Persist the exact plan before writes, including dates resolved from the original capture.
+      const planned = { version: 1, state: 'queued', captureId: parsed.meta?.captureId, plannedAt: parsed.meta?.plannedAt || new Date().toISOString(), intent };
+      saveMeta_(sourceList, task, planned);
+      try {
+        const result = executeIntent_(sourceList, task, intent, props);
+        saveMeta_(sourceList, task, Object.assign({}, planned, result, { state: 'processed', processedAt: new Date().toISOString() }), intent.kind !== 'task');
+      } catch (error) {
+        errors++;
+        saveMeta_(sourceList, task, Object.assign({}, planned, { state: 'error', error: String(error.message || error).slice(0, 400) }));
+      }
+      } catch (error) {
+        errors++;
+        console.warn('Demande non traitée (' + task.id + ') : ' + String(error.message || error).slice(0, 400));
+      }
+      processed++;
+    }
+    heartbeat_({ active: true, lastRun: new Date().toISOString(), message: errors ? errors + ' demande(s) à réessayer.' : 'Dernier passage réussi.', errors });
+  } catch (error) {
+    heartbeat_({ active: true, lastRun: new Date().toISOString(), message: String(error.message || error).slice(0, 400), errors: errors + 1 });
+    throw error;
+  } finally { lock.releaseLock(); }
+}
+
+function executeIntent_(sourceList, task, intent, props) {
+  if (intent.kind === 'task') return {};
+  const key = sourceList + ':' + task.id;
+  const original = unpackNotes(task.notes).text;
+  if (intent.kind === 'event') {
+    // Calendar IDs only accept base32hex characters. A SHA256 hexadecimal ID qualifies.
+    const id = 'lh' + Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, key).map(b => ('0' + ((b + 256) % 256).toString(16)).slice(-2)).join('');
+    let event;
+    try { event = Calendar.Events.get(SETTINGS.calendarId, id); }
+    catch (error) { if (!/not found|404/i.test(String(error))) throw error; }
+    if (event && event.status === 'cancelled') throw new Error('Le rendez-vous créé a été supprimé du calendrier. Il ne sera pas recréé automatiquement.');
+    if (!event && validateIntent(intent)) throw new Error(validateIntent(intent));
+    if (!event) event = Calendar.Events.insert({ id, summary: intent.title, description: original,
+      start: { dateTime: parisInstant(intent.date, intent.start), timeZone: 'Europe/Paris' },
+      end: { dateTime: parisInstant(intent.date, intent.end), timeZone: 'Europe/Paris' },
+      extendedProperties: { private: { lifeHubSource: key } } }, SETTINGS.calendarId, { sendUpdates: 'none' });
+    return { eventUrl: event.htmlLink };
+  }
+  const listId = props.getProperty(intent.kind === 'shopping' ? 'shoppingListId' : 'notesListId');
+  if (!listId) throw new Error('Liste de destination manquante. Relancez installer.');
+  const existing = allTasks_(listId, { showCompleted: true, showHidden: true });
+  const titles = intent.kind === 'shopping' ? intent.items : [intent.title];
+  const ids = titles.map((title, index) => {
+    const outputKey = key + ':' + index;
+    let output = existing.find(item => unpackNotes(item.notes).meta?.generatedFor === outputKey);
+    if (!output) {
+      const notes = packNotes(original, { version: 1, state: 'processed', intent: { kind: intent.kind, title }, generatedFor: outputKey });
+      output = Tasks.Tasks.insert({ title, notes }, listId);
+      existing.push(output);
+    }
+    return output.id;
+  });
+  return { outputListId: listId, outputIds: ids };
+}
+
+function saveMeta_(listId, task, meta, complete) {
+  const patch = { notes: packNotes(unpackNotes(task.notes).text, meta) };
+  if (complete) patch.status = 'completed';
+  Tasks.Tasks.patch(patch, listId, task.id);
+}
+
+function allTasks_(listId, options) {
+  let items = [], pageToken;
+  do {
+    const page = Tasks.Tasks.list(listId, Object.assign({ maxResults: 100 }, options, pageToken ? { pageToken } : {}));
+    items = items.concat(page.items || []);
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+  return items.filter(task => !task.deleted);
+}
+
+function ensureList_(title) {
+  let pageToken;
+  do {
+    const page = Tasks.Tasklists.list(Object.assign({ maxResults: 100 }, pageToken ? { pageToken } : {}));
+    const found = (page.items || []).find(list => list.title === title);
+    if (found) return found;
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+  return Tasks.Tasklists.insert({ title });
+}
+
+function heartbeat_(update) {
+  const props = PropertiesService.getScriptProperties();
+  const listId = props.getProperty('serviceListId');
+  if (!listId) return;
+  const health = Object.assign({}, JSON.parse(props.getProperty('health') || '{}'), update);
+  props.setProperty('health', JSON.stringify(health));
+  const existing = allTasks_(listId, { showCompleted: true, showHidden: true }).find(task => task.title === 'État de l’automatisation');
+  const payload = { title: 'État de l’automatisation', notes: JSON.stringify(health), status: 'needsAction' };
+  if (existing) Tasks.Tasks.patch(payload, listId, existing.id);
+  else Tasks.Tasks.insert(payload, listId);
+}

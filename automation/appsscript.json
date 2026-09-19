@@ -1,0 +1,16 @@
+{
+  "timeZone": "Europe/Paris",
+  "runtimeVersion": "V8",
+  "exceptionLogging": "STACKDRIVER",
+  "dependencies": {
+    "enabledAdvancedServices": [
+      { "userSymbol": "Tasks", "version": "v1", "serviceId": "tasks" },
+      { "userSymbol": "Calendar", "version": "v3", "serviceId": "calendar" }
+    ]
+  },
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/tasks",
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/script.scriptapp"
+  ]
+}
