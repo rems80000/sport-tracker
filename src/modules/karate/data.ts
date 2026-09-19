@@ -19,6 +19,7 @@ export const preparation = [
 ]
 
 export const sources = [
+  { title: 'Techniques de base Wado : Junzuki, Gedan Barai et Mae Geri (Karaté Tempo Gouvieux)', url: 'https://karate-tempo-gouvieux.jimdofree.com/le-wado-ryu/techniques-de-base/' },
   { title: 'Positions Wado : photos et repères', url: 'https://www.dojoupdate.com/wado-ryu-stances/' },
   { title: 'First Basic Kata : ressource illustrée, version à comparer au cours', url: 'https://www.dojoupdate.com/wado-ryu-katas/first-basic-kata/' },
   { title: 'Wadō-ryū USA : diversité des formes débutantes', url: 'https://wadoryuusa.com/kata/' },
