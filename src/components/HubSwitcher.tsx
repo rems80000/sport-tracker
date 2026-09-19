@@ -1,4 +1,4 @@
-import { Brain, Dumbbell, House, Network } from 'lucide-react'
+import { Brain, Dumbbell, House, Inbox } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 const MODULES = [
@@ -6,7 +6,7 @@ const MODULES = [
   { to: '/', label: 'TRAINHARD', icon: Dumbbell },
   { to: '/presence', label: 'Présent', icon: Brain },
   { to: '/karate', label: 'KARATÉ', icon: Dumbbell },
-  { to: '/projets', label: 'Projets', icon: Network },
+  { to: '/projets', label: 'Assistant', icon: Inbox },
 ]
 
 export function HubSwitcher() {

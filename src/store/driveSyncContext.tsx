@@ -18,7 +18,9 @@ import {
   updateJsonFile,
 } from '../cloud/googleDrive'
 import type { GoogleDocumentSummary } from '../cloud/googleDrive'
-import { upsertGoogleTask } from '../cloud/googleTasks'
+import { createVoiceCapture, GoogleTasksError, patchVoiceTask, readVoiceWorkspace, upsertGoogleTask } from '../cloud/googleTasks'
+import type { VoiceWorkspace } from '../cloud/googleTasks'
+import type { VoiceTask } from '../voice/engine'
 import type { GoogleTaskInput, GoogleTaskResult } from '../cloud/googleTasks'
 import { getLocalUpdatedAt, mergeAppStates, setLocalUpdatedAt } from '../utils/storage'
 import type { AppState } from '../types'
@@ -48,6 +50,9 @@ interface DriveSyncContextValue {
   syncProjectTask: (task: GoogleTaskInput) => Promise<GoogleTaskResult>
   listProjectDocuments: () => Promise<GoogleDocumentSummary[]>
   readProjectDocument: (fileId: string) => Promise<string>
+  readVoiceInbox: () => Promise<VoiceWorkspace>
+  captureVoiceTask: (listId: string, title: string, captureId: string) => Promise<VoiceTask>
+  updateVoiceTask: (listId: string, task: VoiceTask, patch: Partial<Pick<VoiceTask, 'notes' | 'status' | 'title'>>) => Promise<VoiceTask>
 }
 
 const DriveSyncContext = createContext<DriveSyncContextValue | null>(null)
@@ -294,6 +299,24 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     return exportGoogleDocumentText(token, fileId)
   }, [requireGoogleToken])
 
+  const voiceRequest = useCallback(async <T,>(operation: (token: string) => Promise<T>) => {
+    // Background refresh must never open a sign-in popup.
+    if (!tokenRef.current) throw new Error('Connectez Google pour lire vos demandes.')
+    try { return await operation(tokenRef.current) }
+    catch (caught) {
+      if (caught instanceof GoogleTasksError && caught.status === 401) {
+        tokenRef.current = null
+        readyRef.current = false
+        setStatus('disconnected')
+      }
+      throw caught
+    }
+  }, [])
+  const readVoiceInbox = useCallback(() => voiceRequest(readVoiceWorkspace), [voiceRequest])
+  const captureVoiceTask = useCallback((listId: string, title: string, captureId: string) => voiceRequest(token => createVoiceCapture(token, listId, title, captureId)), [voiceRequest])
+  const updateVoiceTask = useCallback((listId: string, task: VoiceTask, patch: Partial<Pick<VoiceTask, 'notes' | 'status' | 'title'>>) =>
+    voiceRequest(token => patchVoiceTask(token, listId, task, patch)), [voiceRequest])
+
   useEffect(() => {
     const currentJson = JSON.stringify(state)
     if (currentJson === lastStateJsonRef.current) return
@@ -346,6 +369,9 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
       syncProjectTask,
       listProjectDocuments,
       readProjectDocument,
+      readVoiceInbox,
+      captureVoiceTask,
+      updateVoiceTask,
     }}>
       {children}
     </DriveSyncContext.Provider>

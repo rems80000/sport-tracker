@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/build-automation.mjs && tsc -b && vite build",
+    "test:voice": "node --experimental-strip-types --test tests/voice*.test.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

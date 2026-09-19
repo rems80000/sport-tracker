@@ -82,7 +82,7 @@ export function SpoonPlayer() {
 
   return (
     <section className={`relative z-[60] w-full flex-shrink-0 border-b shadow-xl transition-colors lg:w-[390px] lg:border-b-0 ${source === 'spoon' ? 'border-rose-400/40 bg-gradient-to-br from-rose-900 via-slate-800 to-violet-900 shadow-rose-950/30' : 'border-emerald-400/40 bg-gradient-to-br from-emerald-900 via-slate-800 to-slate-900 shadow-emerald-950/30'}`}>
-      <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+      <div className="pointer-events-none absolute right-0 -top-16 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
       <button type="button" onClick={toggleOpen} className="relative flex h-14 w-full items-center gap-3 px-3 py-2 text-left">
         <span className={`grid h-9 w-9 flex-none place-items-center rounded-xl ${source === 'spoon' ? 'bg-gradient-to-br from-rose-500 to-violet-600 text-white' : 'bg-[#1ed760] text-black'}`}>{source === 'spoon' ? <Radio size={17} /> : <Music2 size={17} />}</span>
         <span className="min-w-0 flex-1"><span className="block text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Audio en continu</span><span className="block truncate text-sm font-black text-white">{source === 'spoon' ? station.label : 'Spotify'}</span></span>

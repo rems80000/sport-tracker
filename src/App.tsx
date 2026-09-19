@@ -20,7 +20,7 @@ import { formatDuration } from './utils/storage'
 import { Timer, Play, Pause, SkipForward } from 'lucide-react'
 import { HubSwitcher } from './components/HubSwitcher'
 import { HubHome } from './pages/HubHome'
-import { Projects } from './pages/Projects'
+import { VoiceInbox } from './pages/VoiceInbox'
 import { KarateApp } from './modules/karate/KarateApp'
 import { PresenceApp } from './modules/presence/PresenceApp'
 import { SpoonPlayer } from './components/SpoonPlayer'
@@ -153,7 +153,7 @@ function AppInner() {
             <Route path="/hub" element={<HubHome />} />
             <Route path="/karate/*" element={<KarateApp />} />
             <Route path="/presence/*" element={<PresenceApp />} />
-            <Route path="/projets/*" element={<Projects />} />
+            <Route path="/projets/*" element={<VoiceInbox />} />
           </Routes>
         </main>
       ) : (

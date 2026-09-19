@@ -1,6 +1,6 @@
-import { ArrowRight, Brain, CheckCircle2, Cloud, Download, Dumbbell, Network, Smartphone } from 'lucide-react'
+import { ArrowRight, Brain, CheckCircle2, Cloud, Download, Dumbbell, Inbox, Smartphone } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { loadPresenceSnapshot, loadProjectsSnapshot } from '../cloud/moduleStorage'
+import { loadPresenceSnapshot } from '../cloud/moduleStorage'
 import { useInstallApp } from '../pwa/installContext'
 import { useDriveSync } from '../store/driveSyncContext'
 import { useStore } from '../store/useStore'
@@ -10,7 +10,6 @@ export function HubHome() {
   const drive = useDriveSync()
   const appInstall = useInstallApp()
   const presence = loadPresenceSnapshot().data
-  const projects = loadProjectsSnapshot().data
   const lastSport = state.sessions.filter(session => session.status === 'done' || session.status === 'done_short').sort((a, b) => Date.parse(b.date) - Date.parse(a.date))[0]
 
   return (
@@ -37,7 +36,7 @@ export function HubHome() {
           <ModuleCard to="/" icon={Dumbbell} title="TRAINHARD" eyebrow="Corps" color="indigo" description={lastSport ? `Dernière séance : ${new Date(lastSport.date).toLocaleDateString('fr-FR')}` : 'Votre programme sportif maison'} metric={`${state.sessions.length} séances enregistrées`} />
           <ModuleCard to="/presence" icon={Brain} title="Présent" eyebrow="Esprit" color="emerald" description="Méditations guidées, respiration et ambiances" metric={`${presence.history.length} séances méditées`} />
           <ModuleCard to="/karate" icon={Dumbbell} title="KARATÉ" eyebrow="Dojo" color="amber" description="Fiches, préparation et corrections de David" metric="6 fondamentaux · vos repères de cours" />
-          <ModuleCard to="/projets" icon={Network} title="Projets" eyebrow="Direction" color="amber" description="Le futur mind mapping de tous vos projets" metric={projects.nodes.length ? `${projects.nodes.length} idées structurées` : 'Structure prête à accueillir vos cartes'} />
+          <ModuleCard to="/projets" icon={Inbox} title="Assistant" eyebrow="Quotidien" color="amber" description="Vos demandes vocales, au bon endroit" metric="Tâches · rendez-vous · commissions · notes" />
         </div>
         <section className="mt-6 rounded-2xl border border-slate-700/50 bg-slate-900/70 p-4 sm:p-5">
           <div className="flex items-center gap-3">
