@@ -1,4 +1,4 @@
-import { classify, packNotes, SERVICE_LIST, unpackNotes } from '../voice/engine.ts'
+import { classify, EXTRA_LISTS, packNotes, SERVICE_LIST, unpackNotes } from '../voice/engine.ts'
 import type { VoiceTask } from '../voice/engine.ts'
 
 export interface GoogleTaskInput {
@@ -45,6 +45,7 @@ export interface VoiceWorkspace {
   shopping: VoiceTask[]
   notes: VoiceTask[]
   health?: AutomationHealth
+  lists: { key: string; title: string; id?: string; tasks: VoiceTask[] }[]
   fetchedAt: string
 }
 
@@ -85,7 +86,11 @@ export async function readVoiceWorkspace(token: string): Promise<VoiceWorkspace>
     health?.shoppingListId ? listTasks(token, health.shoppingListId) : Promise.resolve([]),
     health?.notesListId ? listTasks(token, health.notesListId) : Promise.resolve([]),
   ])
-  return { source, tasks, shopping, notes, health, fetchedAt: new Date().toISOString() }
+  const extra = await Promise.all(EXTRA_LISTS.map(async definition => {
+    const saved = lists.find(list => list.title === definition.title)
+    return { key: definition.key, title: definition.title, id: saved?.id, tasks: saved ? await listTasks(token, saved.id) : [] }
+  }))
+  return { source, tasks, shopping, notes, health, lists: extra, fetchedAt: new Date().toISOString() }
 }
 
 export async function patchVoiceTask(token: string, listId: string, task: VoiceTask, patch: Partial<Pick<VoiceTask, 'notes' | 'status' | 'title'>>) {

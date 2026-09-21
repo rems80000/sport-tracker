@@ -23,3 +23,19 @@ test('missing automation remains absent rather than claiming service is active',
   globalThis.fetch=async url=>reply(String(url).includes('/tasks?')?{items:[]}:String(url).endsWith('/%40default')?{id:'source',title:'Mes tâches'}:{items:[{id:'source',title:'Mes tâches'}]})
   try {const result=await readVoiceWorkspace('token');assert.equal(result.health,undefined);assert.equal(result.source.id,'source')} finally {globalThis.fetch=original}
 })
+
+test('loads named lists with their own IDs, dates and completed items', async () => {
+  const original=globalThis.fetch
+  globalThis.fetch=async url=>{
+    const text=String(url)
+    if(text.endsWith('/users/@me/lists?maxResults=100'))return reply({items:[{id:'store',title:'Commission Norauto'}]})
+    if(text.includes('/%40default'))return reply({id:'source',title:'Entrée'})
+    if(text.includes('/lists/store/tasks'))return reply({items:[{id:'tyre',title:'Pneus',due:'2026-10-11T00:00:00Z',status:'completed'}]})
+    return reply({items:[]})
+  }
+  try {
+    const result=await readVoiceWorkspace('token');const list=result.lists.find(list=>list.key==='norauto')
+    assert.equal(result.lists.length,6);assert.equal(list.id,'store');assert.equal(list.tasks[0].due,'2026-10-11T00:00:00Z');assert.equal(list.tasks[0].status,'completed')
+    assert.equal(result.lists.find(list=>list.key==='pets').id,undefined)
+  } finally {globalThis.fetch=original}
+})

@@ -39,3 +39,22 @@ test('preserves user notes and refuses truncation', () => {
   assert.equal(unpackNotes('Texte\n\n--- Life Hub v1 ---\npas du json').text, 'Texte\n\n--- Life Hub v1 ---\npas du json')
   assert.throws(() => packNotes('a'.repeat(8192), meta), /longs/)
 })
+
+test('extra destinations and scheduled dates remain explicit without inventing a reminder time', async () => {
+  const { EXTRA_LISTS, scheduledDay, scheduledLabel } = await import('../src/voice/engine.ts')
+  for (const list of EXTRA_LISTS) {
+    const intent=classify(list.title+' : exemple')
+    assert.equal(intent.destination,list.key);assert.equal(intent.kind,list.kind);assert.equal(validateIntent(intent),null)
+  }
+  assert.equal(classify('Acheter des vis chez Leroy Merlin').destination,'leroy')
+  assert.equal(classify('Acheter du lait au supermarché').destination,'supermarket')
+  assert.equal(classify('Acheter des pneus chez Norauto').destination,'norauto')
+  assert.equal(classify('Acheter une laisse en animalerie').destination,'pets')
+  assert.equal(classify('Acheter du savon à la pharmacie').destination,'pharmacy')
+  assert.equal(classify('Regarder le film Dune').destination,'watchlist')
+  assert.equal(scheduledDay('2026-10-11T00:00:00.000Z'),'2026-10-11')
+  assert.match(scheduledLabel('2026-11-11T00:00:00.000Z'),/11 novembre 2026/)
+  assert.equal(scheduledDay('2026-02-31T00:00:00Z'),null)
+  assert.equal(scheduledLabel(undefined),null)
+  assert.ok(validateIntent({kind:'shopping',title:'exemple',items:['exemple'],destination:'invalid'}))
+})

@@ -42,3 +42,11 @@ Dans un projet Apps Script avec projet Google Cloud standard personnalisé, acti
 ## Vérification développeur
 
 `npm run test:voice` couvre classification, dates Paris/DST, pagination, édition concurrente, absence d'automatisation, conservation des notes, réinstallation, reprise après incident et prévention des doubles créations. Les services Google sont simulés dans ces tests. Une validation réelle après autorisation du compte reste nécessaire.
+
+## Listes et dates de planification
+
+Le Hub affiche le jour transmis par Google Tasks, sans inventer l'heure ni la répétition (non exposées par cette API). Les dates sont lues comme des jours calendaires, sans conversion de fuseau, et les tâches sont triées par date.
+
+Au premier passage du script mis à jour, six listes sont créées ou retrouvées sans déplacer les anciennes commissions : Commission Grande Surface, Commission Leroy Merlin, Commission Norauto, Commission animalerie, Commission pharmacie, Films et séries à regarder. Aucun nouveau droit ni déclencheur n'est nécessaire.
+
+Choisir la liste dans le formulaire du Hub, ou dicter par exemple « Acheter des vis chez Leroy Merlin » / « Regarder le film Dune ». Le préfixe exact « Commission pharmacie : savon » fonctionne aussi. Les demandes sans magasin restent dans les commissions générales ; aucun magasin n'est déduit uniquement d'un article. Les éléments ajoutés aux listes conservent la date Google de la demande source.

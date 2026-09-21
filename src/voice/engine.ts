@@ -3,10 +3,30 @@ export const META_MARKER = '\n\n--- Life Hub v1 ---\n'
 export const SERVICE_LIST = 'Life Hub — service'
 export const SHOPPING_LIST = 'Commissions — Life Hub'
 export const NOTES_LIST = 'Notes — Life Hub'
+export const EXTRA_LISTS = [
+  { key: 'supermarket', title: 'Commission Grande Surface', kind: 'shopping' },
+  { key: 'leroy', title: 'Commission Leroy Merlin', kind: 'shopping' },
+  { key: 'norauto', title: 'Commission Norauto', kind: 'shopping' },
+  { key: 'pets', title: 'Commission animalerie', kind: 'shopping' },
+  { key: 'pharmacy', title: 'Commission pharmacie', kind: 'shopping' },
+  { key: 'watchlist', title: 'Films et séries à regarder', kind: 'note' },
+] as const
+export type Destination = typeof EXTRA_LISTS[number]['key']
+export function scheduledDay(due?: string): string | null {
+  const day = due?.match(/^\d{4}-\d{2}-\d{2}/)?.[0]
+  if (!day) return null
+  const parsed = new Date(day + 'T12:00:00Z')
+  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== day ? null : day
+}
+export function scheduledLabel(due?: string): string | null {
+  const day = scheduledDay(due)
+  return day ? new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(day + 'T12:00:00Z')) : null
+}
 export type IntentKind = 'task' | 'event' | 'shopping' | 'note' | 'review'
 export interface Intent {
   kind: IntentKind
   title: string
+  destination?: Destination
   items?: string[]
   date?: string
   start?: string
@@ -78,6 +98,7 @@ export function parisInstant(date: string, time: string): string | null {
 
 export function validateIntent(intent: Intent, now = new Date().toISOString()): string | null {
   if (!intent.title.trim()) return 'Précisez le contenu de la demande.'
+  if (intent.destination && !EXTRA_LISTS.some(list => list.key === intent.destination && list.kind === intent.kind)) return 'Choisissez une liste compatible avec cette demande.'
   if (intent.kind === 'review') return intent.reason || 'Choisissez une destination.'
   if (intent.kind === 'shopping' && (!intent.items?.length || intent.items.length > 30 || intent.items.some(item => !item.trim() || item.length > 1024))) return 'Précisez entre 1 et 30 articles, un par ligne.'
   if (intent.kind !== 'event') return null
@@ -96,12 +117,19 @@ export function classify(text: string, reference = new Date().toISOString()): In
   const normalized = fold(title)
   const review = (reason: string): Intent => ({ kind: 'review', title, reason })
   if (!title) return review('La demande est vide.')
+  const explicitList = EXTRA_LISTS.find(list => normalized.startsWith(fold(list.title) + ':') || normalized.startsWith(fold(list.title) + ' :'))
+  if (explicitList) {
+    const content = title.slice(title.indexOf(':') + 1).trim()
+    if (!content) return review('Précisez le contenu à ajouter à la liste.')
+    return { kind: explicitList.kind, title: content, destination: explicitList.key, ...(explicitList.kind === 'shopping' ? { items: content.split(/\s*(?:,|;|\bet\b)\s*/i).filter(Boolean) } : {}) }
+  }
   if (/^(?:note\b|idee\b|garde (?:cette |l')idee\b|retiens\b|enregistre (?:une |cette )?note\b)/.test(normalized)) {
     const content = title.replace(/^(?:note|idée|idee|garde (?:cette |l['’])idée|retiens|enregistre (?:une |cette )?note)\s*[:,-]?\s*/i, '')
     return content ? { kind: 'note', title: content } : review('Précisez la note à conserver.')
   }
   if (/\b(ne pas|n'|annule|supprime|sauf|peut-etre|si jamais|tous les|toutes les|chaque)\b/.test(normalized)) return review('Cette demande contient une condition, une négation ou une répétition : vérifiez son traitement.')
   if (/\b(?:et|puis)\s+(?:appeler|prendre|reserver|noter|ajouter|bloquer|acheter|rappeler)\b/.test(normalized)) return review('Cette phrase contient plusieurs actions. Séparez-les avant le traitement.')
+  if (/^(?:regarder|voir)\s+(?:le film|la serie|le documentaire)\b/.test(normalized)) return { kind: 'note', destination: 'watchlist', title }
   if (/^(?:prendre|demander|fixer|reserver)\s+(?:un\s+)?(?:rendez-vous|rendez vous|rdv)\b/.test(normalized)) return { kind: 'task', title }
   if (/^(?:acheter\b|courses\b|commissions\b|(?:ajoute|ajouter)\b.*\b(?:courses|commissions)\b|il faut acheter\b)/.test(normalized)) {
     const content = title.replace(/^(?:il faut acheter|acheter|courses|commissions|ajouter|ajoute)\s*[:,-]?\s*/i, '')
@@ -109,7 +137,11 @@ export function classify(text: string, reference = new Date().toISOString()): In
     if (/\b(?:demain|aujourd'hui|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b|\d{1,2}\s*h\b/.test(fold(content))) return review('Vérifiez les articles et leur éventuelle échéance.')
     const items = content.split(/\s*(?:,|;|\n|\bet\b)\s*/i).map(item => item.trim()).filter(Boolean)
     if (!items.length || items.length > 30) return review('Précisez les articles à ajouter aux commissions.')
-    return { kind: 'shopping', title, items }
+    const stores: [Destination, RegExp][] = [['leroy', /\b(?:chez|a|au) leroy merlin\b/], ['norauto', /\b(?:chez|a) norauto\b/], ['pets', /\b(?:a l'|en |chez l')animalerie\b/], ['pharmacy', /\b(?:a la |en )pharmacie\b/], ['supermarket', /\b(?:en grande surface|au supermarche)\b/]]
+    const matches = stores.filter(([, pattern]) => pattern.test(normalized))
+    if (matches.length > 1) return review('Plusieurs magasins sont cités. Séparez les demandes par magasin.')
+    const destination = matches[0]?.[0]
+    return { kind: 'shopping', title, items, ...(destination ? { destination } : {}) }
   }
   if (/\b(?:rendez-vous|rendez vous|rdv|reunion)\b|^(?:bloque|bloquer|planifie|planifier)\b/.test(normalized)) {
     let date: string | undefined

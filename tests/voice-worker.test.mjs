@@ -29,7 +29,7 @@ function setup(seed = []) {
 test('install is idempotent and does not process pre-existing requests', () => {
   const s=setup([{id:'old',title:'Acheter du lait',updated:'2020-01-01T00:00:00Z',status:'needsAction'}])
   s.ctx.installer();s.ctx.traiterDemandes()
-  assert.equal(s.triggers.length,1);assert.equal(s.lists.length,4);assert.equal(s.tasks.source[0].notes,undefined)
+  assert.equal(s.triggers.length,1);assert.equal(s.lists.length,10);assert.equal(s.tasks.source[0].notes,undefined)
   s.ctx.arreter();assert.equal(s.triggers.length,0);assert.equal(s.tasks.source.length,1)
 })
 test('shopping, notes, tasks and incomplete events route without duplicate outputs', () => {
@@ -63,4 +63,14 @@ test('manual clarification queues old items and is honored instead of reclassifi
 test('one oversized request does not block following tasks or erase its notes', () => {
   const s=setup();s.add('Acheter du lait','a'.repeat(8180));s.add('Appeler Paul');s.ctx.traiterDemandes()
   assert.equal(s.tasks.source[0].notes,'a'.repeat(8180));assert.equal(unpackNotes(s.tasks.source[1].notes).meta.state,'processed')
+})
+
+test('creates the six extra lists once and routes explicit lists while preserving scheduled dates', () => {
+  const s=setup();s.add('Commission Leroy Merlin : vis et chevilles');s.tasks.source[0].due='2099-10-11T00:00:00.000Z';s.add('Regarder la série The Witcher');s.ctx.traiterDemandes();s.ctx.traiterDemandes()
+  const ids=JSON.parse(s.values.extraListIds)
+  assert.equal(Object.keys(ids).length,6);assert.equal(s.lists.length,10)
+  assert.deepEqual(s.tasks[ids.leroy].map(t=>t.title),['vis','chevilles'])
+  assert.ok(s.tasks[ids.leroy].every(t=>t.due==='2099-10-11T00:00:00.000Z'))
+  assert.equal(s.tasks[ids.watchlist][0].title,'Regarder la série The Witcher')
+  assert.equal(s.tasks.source[0].due,'2099-10-11T00:00:00.000Z')
 })

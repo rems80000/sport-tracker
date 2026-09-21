@@ -40,6 +40,7 @@ function traiterDemandes() {
   let processed = 0, errors = 0;
   try {
     if (!sourceList) throw new Error('Exécutez installer une première fois.');
+    ensureExtraLists_(props);
     // No watermark: a failed item or a batch beyond the time budget is retried next run.
     const tasks = allTasks_(sourceList, { showCompleted: false });
     for (const task of tasks) {
@@ -97,7 +98,7 @@ function executeIntent_(sourceList, task, intent, props) {
       extendedProperties: { private: { lifeHubSource: key } } }, SETTINGS.calendarId, { sendUpdates: 'none' });
     return { eventUrl: event.htmlLink };
   }
-  const listId = props.getProperty(intent.kind === 'shopping' ? 'shoppingListId' : 'notesListId');
+  const listId = intent.destination ? JSON.parse(props.getProperty('extraListIds') || '{}')[intent.destination] : props.getProperty(intent.kind === 'shopping' ? 'shoppingListId' : 'notesListId');
   if (!listId) throw new Error('Liste de destination manquante. Relancez installer.');
   const existing = allTasks_(listId, { showCompleted: true, showHidden: true });
   const titles = intent.kind === 'shopping' ? intent.items : [intent.title];
@@ -106,7 +107,7 @@ function executeIntent_(sourceList, task, intent, props) {
     let output = existing.find(item => unpackNotes(item.notes).meta?.generatedFor === outputKey);
     if (!output) {
       const notes = packNotes(original, { version: 1, state: 'processed', intent: { kind: intent.kind, title }, generatedFor: outputKey });
-      output = Tasks.Tasks.insert({ title, notes }, listId);
+      output = Tasks.Tasks.insert(Object.assign({ title, notes }, task.due ? { due: task.due } : {}), listId);
       existing.push(output);
     }
     return output.id;
@@ -151,4 +152,14 @@ function heartbeat_(update) {
   const payload = { title: 'État de l’automatisation', notes: JSON.stringify(health), status: 'needsAction' };
   if (existing) Tasks.Tasks.patch(payload, listId, existing.id);
   else Tasks.Tasks.insert(payload, listId);
+}
+
+function ensureExtraLists_(props) {
+  const ids = JSON.parse(props.getProperty('extraListIds') || '{}');
+  for (const list of EXTRA_LISTS) {
+    if (!ids[list.key]) {
+      ids[list.key] = ensureList_(list.title).id;
+      props.setProperty('extraListIds', JSON.stringify(ids));
+    }
+  }
 }
