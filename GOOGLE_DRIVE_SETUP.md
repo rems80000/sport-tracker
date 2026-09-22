@@ -38,8 +38,14 @@ Pour un hébergeur, ajouter la même variable dans ses réglages d'environnement
 
 ## 5. Première connexion
 
-1. Ouvrir **Réglages > Sauvegarde multi-appareils**.
-2. Appuyer sur **Connecter Google**.
+1. Ouvrir n'importe quel écran du Hub, sur ordinateur ou mobile.
+2. Appuyer sur **Connecter Google**, dans la barre fixe en haut de l'écran.
 3. Autoriser l'accès demandé.
 
 TRAINHARD créera `remy-life-hub.json` dans Mon Drive. Les futures applications Présence et Projets utiliseront le même fichier, chacune dans son module indépendant.
+
+## Rappel facultatif au démarrage
+
+Dans les **Options de connexion Google** (bouton à droite de la barre), cocher **Me proposer la connexion au démarrage**. Ce choix est désactivé par défaut et conservé sur cet appareil. À chaque nouveau chargement de l'application, une invitation propose **Connecter Google** ou **Plus tard**. Changer de page ou revenir simplement à l'application sans la recharger ne réaffiche pas cette invitation.
+
+Ce rappel n'ouvre jamais la fenêtre Google sans un clic. Il ne prolonge pas l'autorisation : à expiration, la barre indique de nouveau que Google n'est pas connecté. Aucun serveur supplémentaire ni abonnement n'est nécessaire.

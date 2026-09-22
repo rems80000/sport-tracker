@@ -6,9 +6,11 @@ const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/tasks',
 ].join(' ')
 const GOOGLE_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
+let identityPromise: Promise<void> | null = null
 
 interface TokenResponse {
   access_token?: string
+  expires_in?: number | string
   error?: string
   error_description?: string
 }
@@ -69,7 +71,7 @@ export class DriveRequestError extends Error {
 }
 
 export function isDriveAuthError(error: unknown) {
-  return error instanceof DriveRequestError && (error.status === 401 || error.status === 403)
+  return error instanceof DriveRequestError && error.status === 401
 }
 
 function escapeDriveQuery(value: string) {
@@ -92,21 +94,39 @@ async function driveFetch(accessToken: string, url: string, init?: RequestInit) 
 
 export function loadGoogleIdentity(): Promise<void> {
   if (window.google?.accounts.oauth2) return Promise.resolve()
-  return new Promise((resolve, reject) => {
+  if (identityPromise) return identityPromise
+  identityPromise = new Promise<void>((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${GOOGLE_SCRIPT_URL}"]`)
     const script = existing ?? document.createElement('script')
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Impossible de charger la connexion Google'))
+    const cleanup = () => {
+      window.clearTimeout(timeout)
+      script.removeEventListener('load', loaded)
+      script.removeEventListener('error', failed)
+    }
+    const failed = () => {
+      cleanup()
+      script.remove()
+      reject(new Error('Impossible de charger la connexion Google. Vérifie le réseau puis réessaie.'))
+    }
+    const loaded = () => {
+      if (!window.google?.accounts.oauth2) { failed(); return }
+      cleanup()
+      resolve()
+    }
+    const timeout = window.setTimeout(failed, 15000)
+    script.addEventListener('load', loaded)
+    script.addEventListener('error', failed)
     if (!existing) {
       script.src = GOOGLE_SCRIPT_URL
       script.async = true
       script.defer = true
       document.head.appendChild(script)
     }
-  })
+  }).finally(() => { identityPromise = null })
+  return identityPromise
 }
 
-export async function requestDriveAccess(clientId: string): Promise<string> {
+export async function requestDriveAccess(clientId: string): Promise<{ accessToken: string; expiresAt: number }> {
   await loadGoogleIdentity()
   return new Promise((resolve, reject) => {
     const oauth = window.google?.accounts.oauth2
@@ -122,7 +142,12 @@ export async function requestDriveAccess(clientId: string): Promise<string> {
           reject(new Error(response.error_description || response.error || 'Autorisation Google refusée'))
           return
         }
-        resolve(response.access_token)
+        const lifetime = Number(response.expires_in)
+        if (!Number.isFinite(lifetime) || lifetime <= 0) {
+          reject(new Error('La durée de connexion Google est invalide. Réessayez.'))
+          return
+        }
+        resolve({ accessToken: response.access_token, expiresAt: Date.now() + lifetime * 1000 })
       },
       error_callback: popupError => {
         if (popupError.type === 'popup_failed_to_open') {

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { useDriveSync } from '../store/driveSyncContext'
 import { exportJSON, importJSON } from '../utils/storage'
-import { Download, Upload, Trash2, Info, Cloud, ExternalLink, LogIn, LogOut, RefreshCw, CheckCircle2, AlertTriangle, Smartphone } from 'lucide-react'
+import { Download, Upload, Trash2, Info, Cloud, ExternalLink, CheckCircle2, AlertTriangle, Smartphone } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { AppTheme } from '../types'
 import { useInstallApp } from '../pwa/installContext'
@@ -63,8 +63,6 @@ export function Settings() {
 
   const sessionCount = state.sessions.length
   const dataSize = Math.round(JSON.stringify(state).length / 1024)
-  const driveBusy = drive.status === 'connecting' || drive.status === 'syncing'
-  const driveConnected = drive.status === 'synced' || drive.status === 'syncing'
   const lastSyncLabel = drive.lastSyncedAt
     ? new Date(drive.lastSyncedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
     : null
@@ -224,35 +222,9 @@ export function Settings() {
             </div>
           )}
 
-          <div className="flex gap-2 px-4 py-3">
-            {!driveConnected ? (
-              <button
-                onClick={() => void drive.connect()}
-                disabled={driveBusy || !drive.configured}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold active:scale-95 transition-transform disabled:opacity-40 disabled:active:scale-100"
-              >
-                {driveBusy ? <RefreshCw size={14} className="animate-spin" /> : <LogIn size={14} />}
-                {drive.status === 'error' ? 'Reconnecter Google' : 'Connecter Google'}
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={() => void drive.syncNow()}
-                  disabled={driveBusy}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-700/20 border border-green-600/30 text-green-300 text-xs font-bold active:scale-95 transition-transform disabled:opacity-50"
-                >
-                  <RefreshCw size={14} className={driveBusy ? 'animate-spin' : ''} /> Synchroniser
-                </button>
-                <button
-                  onClick={drive.disconnect}
-                  className="px-3 flex items-center justify-center rounded-xl bg-slate-700/50 text-slate-400 active:scale-95 transition-transform"
-                  title="Déconnecter Google Drive"
-                >
-                  <LogOut size={15} />
-                </button>
-              </>
-            )}
-          </div>
+          <p className="px-4 py-3 text-xs leading-relaxed text-slate-300">
+            La barre Google, toujours en haut de l’écran, permet de te connecter, de synchroniser et d’activer le rappel au démarrage dans ses options.
+          </p>
 
           <div className="flex gap-2 px-4 py-3">
             <button

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Archive, ArrowRight, Check, Cloud, Inbox, ListTodo, MessageSquareText, Plus, RefreshCw, Settings2, ShoppingBasket, StickyNote, X } from 'lucide-react'
+import { Archive, ArrowRight, Check, Inbox, ListTodo, MessageSquareText, Plus, RefreshCw, Settings2, ShoppingBasket, StickyNote, X } from 'lucide-react'
 import type { VoiceWorkspace } from '../cloud/googleTasks'
 import { LIFE_HUB_PROJECTS_IMPORTED_EVENT, loadProjectsSnapshot } from '../cloud/moduleStorage'
 import { useDriveSync } from '../store/driveSyncContext'
@@ -27,7 +27,7 @@ function safeUrl(url?: string) {
 }
 
 export function VoiceInbox() {
-  const { status, error: driveError, connect, readVoiceInbox, captureVoiceTask, updateVoiceTask } = useDriveSync()
+  const { connected, error: driveError, readVoiceInbox, captureVoiceTask, updateVoiceTask } = useDriveSync()
   const [workspace, setWorkspace] = useState<VoiceWorkspace | null>(null)
   const [view, setView] = useState<View>('inbox')
   const [drafts, setDrafts] = useState(loadDrafts)
@@ -43,7 +43,6 @@ export function VoiceInbox() {
   const [legacy, setLegacy] = useState(() => loadProjectsSnapshot().data)
   useEffect(() => { const imported = () => setLegacy(loadProjectsSnapshot().data); window.addEventListener(LIFE_HUB_PROJECTS_IMPORTED_EVENT, imported); return () => window.removeEventListener(LIFE_HUB_PROJECTS_IMPORTED_EVENT, imported) }, [])
   const refreshing = useRef(false), working = useRef(false)
-  const connected = status === 'synced' || status === 'syncing'
   const refresh = useCallback(async () => {
     if (refreshing.current || !navigator.onLine) return
     refreshing.current = true
@@ -110,8 +109,8 @@ export function VoiceInbox() {
   return <div className="voice-app"><div className="voice-shell">
     <header className="voice-header"><div><p className="voice-eyebrow">LIFE HUB · ASSISTANT PERSONNEL</p><h1>Dis-le. Retrouve-le.</h1><p>Tes demandes, au bon endroit.</p></div><div className="voice-header-actions">
       <button onClick={() => setSetup(!setup)} aria-expanded={setup}><Settings2 size={17} /> Configuration</button>
-      <button className="voice-primary" disabled={busy || !online} onClick={() => void run(async () => { if (!connected) await connect(); await refresh() })}>{connected ? <RefreshCw size={17} /> : <Cloud size={17} />}{busy ? 'Un instant…' : connected ? 'Actualiser' : 'Connecter Google'}</button></div></header>
-    <div className="voice-status" role="status"><span className={`voice-dot ${active && online && connected ? 'active' : ''}`} />{!online ? 'Hors connexion · brouillons disponibles' : !connected ? 'Google déconnecté · connecte-toi pour retrouver tes demandes' : !health ? 'Réception disponible · automatisation à installer' : !health.active ? 'Automatisation arrêtée' : !health.lastRun ? 'Automatisation installée · premier passage attendu' : active ? 'Automatisation active' : 'Automatisation à vérifier · aucun passage récent'}{health?.lastRun && <small>Dernier passage : {clock(health.lastRun)}</small>}</div>
+      {connected && <button className="voice-primary" disabled={busy || !online} onClick={() => void run(refresh)}><RefreshCw size={17} />{busy ? 'Un instant…' : 'Actualiser'}</button>}</div></header>
+    <div className="voice-status" role="status"><span className={`voice-dot ${active && online && connected ? 'active' : ''}`} />{!online ? 'Hors connexion · brouillons disponibles' : !connected ? 'Google déconnecté · utilise « Connecter Google » dans la barre en haut' : !health ? 'Réception disponible · automatisation à installer' : !health.active ? 'Automatisation arrêtée' : !health.lastRun ? 'Automatisation installée · premier passage attendu' : active ? 'Automatisation active' : 'Automatisation à vérifier · aucun passage récent'}{health?.lastRun && <small>Dernier passage : {clock(health.lastRun)}</small>}</div>
     {(error || driveError) && <p className="voice-alert" role="alert">{error || driveError}</p>}{message && <p className="voice-success" role="status">{message}</p>}{health?.errors ? <p className="voice-alert">Le traitement signale une erreur : {health.message}</p> : null}
     {setup && <section className="voice-setup"><div className="voice-section-title"><h2>Une entrée, depuis tous tes appareils</h2><button aria-label="Fermer la configuration" onClick={() => setSetup(false)}><X size={18} /></button></div>
       <ol><li><b>Dicte à Google.</b> Les demandes doivent arriver dans la liste Google Tasks « {workspace?.source.title || 'ta liste par défaut'} », avec le même compte sur le téléphone, la montre et l’enceinte.</li><li><b>Active le traitement.</b> Il passe environ toutes les cinq minutes, même avec le Hub fermé. Il examine les tâches nouvelles ou modifiées de cette liste, y compris celles saisies à la main. Aucun service d’IA payant n’est utilisé.</li><li><b>Retrouve le résultat ici.</b> Des règles traitent les formulations explicites. Les autres restent dans « À préciser ». Notes et commissions utilisent des listes Google Tasks dédiées.</li></ol>

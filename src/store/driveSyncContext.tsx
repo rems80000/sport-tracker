@@ -39,6 +39,7 @@ type SyncStatus = 'unconfigured' | 'disconnected' | 'connecting' | 'syncing' | '
 
 interface DriveSyncContextValue {
   status: SyncStatus
+  connected: boolean
   configured: boolean
   lastSyncedAt: string | null
   fileUrl: string | null
@@ -104,6 +105,8 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
   const { state, dispatch } = useStore()
   const stateRef = useRef(state)
   const tokenRef = useRef<string | null>(null)
+  const connectingRef = useRef(false)
+  const [expiresAt, setExpiresAt] = useState<number | null>(null)
   const fileIdRef = useRef<string | null>(readStoredValue(DRIVE_FILE_ID_KEY))
   const documentRef = useRef<LifeHubDocument | undefined>(undefined)
   const readyRef = useRef(false)
@@ -118,6 +121,22 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => { stateRef.current = state }, [state])
+
+  useEffect(() => {
+    if (!expiresAt) return
+    const expire = () => {
+      if (Date.now() < expiresAt) return
+      tokenRef.current = null
+      readyRef.current = false
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      setExpiresAt(null)
+      setStatus('disconnected')
+      setError('La connexion Google a expiré. Utilise « Connecter Google » dans la barre en haut.')
+    }
+    const timeout = window.setTimeout(expire, Math.max(0, expiresAt - Date.now()))
+    document.addEventListener('visibilitychange', expire)
+    return () => { window.clearTimeout(timeout); document.removeEventListener('visibilitychange', expire) }
+  }, [expiresAt])
 
   const pushState = useCallback(async () => {
     const token = tokenRef.current
@@ -220,31 +239,38 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
   }, [dispatch, pushState])
 
   const connect = useCallback(async () => {
+    if (connectingRef.current) return
     if (!configured) {
       setStatus('unconfigured')
       setError('Le Client ID Google doit être configuré avant la première connexion.')
       return
     }
     try {
+      connectingRef.current = true
       setStatus('connecting')
       setError(null)
-      const token = await requestDriveAccess(GOOGLE_CLIENT_ID)
-      tokenRef.current = token
-      await initialSync(token)
+      const session = await requestDriveAccess(GOOGLE_CLIENT_ID)
+      tokenRef.current = session.accessToken
+      setExpiresAt(session.expiresAt)
+      await initialSync(session.accessToken)
     } catch (caught) {
-      tokenRef.current = null
+      if (isDriveAuthError(caught) || !tokenRef.current) {
+        tokenRef.current = null
+        setExpiresAt(null)
+      }
       readyRef.current = false
       setStatus('error')
       setError(isDriveAuthError(caught)
         ? 'Connexion Google expirée. Reconnectez Google Drive puis relancez la synchronisation.'
         : caught instanceof Error ? caught.message : 'Échec de la connexion Google Drive')
-    }
+    } finally { connectingRef.current = false }
   }, [configured, initialSync])
 
   const disconnect = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     if (tokenRef.current) revokeDriveAccess(tokenRef.current)
     tokenRef.current = null
+    setExpiresAt(null)
     fileIdRef.current = null
     documentRef.current = undefined
     readyRef.current = false
@@ -254,7 +280,8 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
 
   const syncNow = useCallback(async () => {
     if (!tokenRef.current) {
-      await connect()
+      // Background synchronization must never open a Google authorization window.
+      setStatus(configured ? 'disconnected' : 'unconfigured')
       return
     }
     try {
@@ -263,14 +290,15 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     } catch (caught) {
       if (isDriveAuthError(caught)) {
         tokenRef.current = null
+        setExpiresAt(null)
         readyRef.current = false
       }
       setStatus('error')
       setError(isDriveAuthError(caught)
-        ? 'Connexion Google expirée. Cliquez sur « Reconnecter Google », puis synchronisez.'
+        ? 'Connexion Google expirée. Utilise « Connecter Google » dans la barre en haut.'
         : caught instanceof Error ? caught.message : 'Échec de la synchronisation')
     }
-  }, [connect, initialSync])
+  }, [configured, initialSync])
 
   const requireGoogleToken = useCallback(async () => {
     if (!tokenRef.current) await connect()
@@ -306,6 +334,7 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
     catch (caught) {
       if (caught instanceof GoogleTasksError && caught.status === 401) {
         tokenRef.current = null
+        setExpiresAt(null)
         readyRef.current = false
         setStatus('disconnected')
       }
@@ -358,6 +387,7 @@ export function DriveSyncProvider({ children }: { children: ReactNode }) {
   return (
     <DriveSyncContext.Provider value={{
       status,
+      connected: expiresAt !== null,
       configured,
       lastSyncedAt,
       fileUrl: fileId ? `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view` : null,

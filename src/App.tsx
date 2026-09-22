@@ -25,6 +25,7 @@ import { KarateApp } from './modules/karate/KarateApp'
 import { PresenceApp } from './modules/presence/PresenceApp'
 import { SpoonPlayer } from './components/SpoonPlayer'
 import { InstallProvider } from './pwa/install'
+import { GoogleConnection } from './components/GoogleConnection'
 
 const FR_DAYS_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 const FR_MONTHS_FULL = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
@@ -142,6 +143,7 @@ function AppInner() {
 
   return (
     <div className={`app-root flex min-h-dvh flex-col ${isHubModule ? 'bg-slate-950' : `theme-${state.theme}`}`}>
+      <GoogleConnection />
       {!isHubModule && !isActiveWorkout && <ClockBar />}
       <div className="hub-topbar relative z-[70] flex-shrink-0 lg:flex lg:items-stretch">
         <HubSwitcher />
