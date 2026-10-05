@@ -159,11 +159,17 @@ function installer() {
   try {
     const props = PropertiesService.getScriptProperties();
     const source = Tasks.Tasklists.get(SETTINGS.sourceList);
+    // Reuse the default list used by Google voice capture; never move its reminders.
+    if (source.title === 'Notes à la volée') {
+      Tasks.Tasklists.patch({ title: 'Inbox — Life Hub' }, source.id);
+      source.title = 'Inbox — Life Hub';
+    }
     const startedAt = props.getProperty('startedAt') || new Date().toISOString();
     const shopping = ensureList_(SHOPPING_LIST);
     const notes = ensureList_(NOTES_LIST);
     const service = ensureList_(SERVICE_LIST);
     props.setProperties({ sourceListId: source.id, shoppingListId: shopping.id, notesListId: notes.id, serviceListId: service.id, startedAt });
+    ensureExtraLists_(props);
     const triggers = ScriptApp.getProjectTriggers().filter(t =&gt; t.getHandlerFunction() === 'traiterDemandes');
     if (!triggers.length) ScriptApp.newTrigger('traiterDemandes').timeBased().everyMinutes(SETTINGS.intervalMinutes).create();
     // Re-running setup is safe; remove only this project's redundant triggers.
@@ -192,6 +198,8 @@ function traiterDemandes() {
   let processed = 0, errors = 0;
   try {
     if (!sourceList) throw new Error('Exécutez installer une première fois.');
+    // Recreate deleted destination/service lists and refresh stale IDs.
+    props.setProperties({ shoppingListId: ensureList_(SHOPPING_LIST).id, notesListId: ensureList_(NOTES_LIST).id, serviceListId: ensureList_(SERVICE_LIST).id });
     ensureExtraLists_(props);
     // No watermark: a failed item or a batch beyond the time budget is retried next run.
     const tasks = allTasks_(sourceList, { showCompleted: false });
@@ -309,8 +317,9 @@ function heartbeat_(update) {
 function ensureExtraLists_(props) {
   const ids = JSON.parse(props.getProperty('extraListIds') || '{}');
   for (const list of EXTRA_LISTS) {
-    if (!ids[list.key]) {
-      ids[list.key] = ensureList_(list.title).id;
+    const current = ensureList_(list.title).id;
+    if (ids[list.key] !== current) {
+      ids[list.key] = current;
       props.setProperty('extraListIds', JSON.stringify(ids));
     }
   }

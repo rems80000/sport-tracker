@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { StoreContext, useStore, useStoreReducer } from './store/useStore'
 import { TimerProvider } from './store/timerContext'
 import { DriveSyncProvider } from './store/driveSyncContext'
@@ -20,8 +20,7 @@ import { formatDuration } from './utils/storage'
 import { Timer, Play, Pause, SkipForward } from 'lucide-react'
 import { HubSwitcher } from './components/HubSwitcher'
 import { HubHome } from './pages/HubHome'
-import { VoiceInbox } from './pages/VoiceInbox'
-import { KarateApp } from './modules/karate/KarateApp'
+import { GuitarApp } from './modules/guitar/GuitarApp'
 import { PresenceApp } from './modules/presence/PresenceApp'
 import { SpoonPlayer } from './components/SpoonPlayer'
 import { InstallProvider } from './pwa/install'
@@ -138,7 +137,7 @@ function ClockBar() {
 function AppInner() {
   const { state } = useStore()
   const location = useLocation()
-  const isHubModule = location.pathname === '/hub' || location.pathname.startsWith('/presence') || location.pathname === '/karate' || location.pathname.startsWith('/karate/') || location.pathname.startsWith('/projets')
+  const isHubModule = location.pathname === '/hub' || location.pathname.startsWith('/presence') || location.pathname.startsWith('/guitare') || location.pathname.startsWith('/karate') || location.pathname.startsWith('/projets')
   const isActiveWorkout = /^\/seance\/[^/]+/.test(location.pathname)
 
   return (
@@ -153,9 +152,10 @@ function AppInner() {
         <main className="relative min-h-0 flex-1 overflow-auto">
           <Routes>
             <Route path="/hub" element={<HubHome />} />
-            <Route path="/karate/*" element={<KarateApp />} />
+            <Route path="/guitare/*" element={<GuitarApp />} />
+            <Route path="/karate/*" element={<Navigate to="/hub" replace />} />
             <Route path="/presence/*" element={<PresenceApp />} />
-            <Route path="/projets/*" element={<VoiceInbox />} />
+            <Route path="/projets/*" element={<Navigate to="/hub" replace />} />
           </Routes>
         </main>
       ) : (

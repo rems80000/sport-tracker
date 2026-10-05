@@ -1,12 +1,11 @@
-import { Brain, Dumbbell, House, Inbox } from 'lucide-react'
+import { Brain, Dumbbell, House, Guitar } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 const MODULES = [
   { to: '/hub', label: 'Life Hub', icon: House },
   { to: '/', label: 'TRAINHARD', icon: Dumbbell },
   { to: '/presence', label: 'Présent', icon: Brain },
-  { to: '/karate', label: 'KARATÉ', icon: Dumbbell },
-  { to: '/projets', label: 'Assistant', icon: Inbox },
+  { to: '/guitare', label: 'Guitare', icon: Guitar },
 ]
 
 export function HubSwitcher() {
