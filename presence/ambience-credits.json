@@ -1,0 +1,44 @@
+[
+  {
+    "id": "forest",
+    "source": "https://soundbible.com/1818-Rainforest-Ambience.html",
+    "author": "GlorySunz",
+    "license": "Public Domain",
+    "seconds": 59.34
+  },
+  {
+    "id": "rain",
+    "source": "https://soundbible.com/2065-Rain-Inside-House.html",
+    "author": "Mark DiAngelo",
+    "license": "CC BY 3.0",
+    "seconds": 17.44
+  },
+  {
+    "id": "waves",
+    "source": "https://soundbible.com/1936-Crisp-Ocean-Waves.html",
+    "author": "Mike Koenig",
+    "license": "CC BY 3.0",
+    "seconds": 66.37
+  },
+  {
+    "id": "stream",
+    "source": "https://soundbible.com/1776-Babbling-Brook.html",
+    "author": "stephan",
+    "license": "Public Domain",
+    "seconds": 9.0
+  },
+  {
+    "id": "night",
+    "source": "https://soundbible.com/2083-Crickets-Chirping-At-Night.html",
+    "author": "Lisa Redfern",
+    "license": "Public Domain",
+    "seconds": 47.35
+  },
+  {
+    "id": "fire",
+    "source": "https://soundbible.com/1902-Fire-Burning.html",
+    "author": "JaBa",
+    "license": "CC BY 3.0",
+    "seconds": 14.16
+  }
+]
