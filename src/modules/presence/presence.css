@@ -144,3 +144,26 @@
 
 .presence-root .tip-next{margin-top:14px;padding:8px 16px;font-size:12px}
 .presence-root .tips-page{overflow:auto!important}
+
+.presence-root .today-page{height:auto!important;min-height:100vh;overflow:visible!important;display:block;padding-bottom:40px}
+.presence-root .session-shelf{margin:24px 0;min-width:0}
+.presence-root .shelf-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.presence-root .shelf-heading h3{font:500 23px 'Newsreader';margin:0;color:#315248}
+.presence-root .shelf-heading>div{display:flex;gap:8px}
+.presence-root .shelf-heading button{width:36px;height:36px;border:1px solid #ccd7ce;border-radius:50%;background:#faf8f2;color:#315248;cursor:pointer}
+.presence-root .session-rail{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:3px;padding:3px 3px 16px;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:#9cae9f transparent}
+.presence-root .browse-session{flex:0 0 224px;scroll-snap-align:start;border:1px solid #d4ded4;border-radius:18px;overflow:hidden;background:#faf8f2;text-align:left;padding:0;color:#315248;cursor:pointer;transition:transform .2s,box-shadow .2s}
+.presence-root .browse-session:hover{transform:translateY(-3px);box-shadow:0 9px 24px #173a3218}
+.presence-root .browse-session:focus-visible,.presence-root .shelf-heading button:focus-visible{outline:3px solid #9b7457;outline-offset:2px}
+.presence-root .browse-session.selected{border-color:#527669}
+.presence-root .browse-art{height:118px;display:grid;place-items:center;position:relative;overflow:hidden;background:radial-gradient(circle at 20% 110%,#789d8480 0,transparent 65%),linear-gradient(125deg,#163b32,#6e9080);color:#ebefdf;font-size:58px}
+.presence-root .browse-art:before{content:'';position:absolute;width:150px;height:150px;border:1px solid #ffffff29;border-radius:50%;right:-25px;top:-50px}
+.presence-root .sand .browse-art{background:linear-gradient(125deg,#695940,#b59b72)}
+.presence-root .blue .browse-art{background:linear-gradient(125deg,#284453,#7e9da2)}
+.presence-root .rose .browse-art{background:linear-gradient(125deg,#694846,#b38f80)}
+.presence-root .browse-art i{position:absolute;right:12px;bottom:12px;background:#ffffffdd;color:#254b41;font:12px sans-serif;width:30px;height:30px;display:grid;place-items:center;border-radius:50%}
+.presence-root .browse-copy{display:flex;flex-direction:column;gap:7px;padding:15px;min-height:110px}
+.presence-root .browse-copy small{font-size:9px;letter-spacing:.08em;color:#7a8d82}
+.presence-root .browse-copy b{font:500 21px/1.15 'Newsreader'}
+.presence-root .browse-copy>span{font-size:11px;color:#7d8984}
+@media(max-width:720px){.presence-root .browse-session{flex-basis:76vw;max-width:270px}.presence-root .shelf-heading h3{font-size:21px}.presence-root .today-page .section-heading{align-items:flex-start;gap:12px}.presence-root .today-page .section-heading h2{font-size:25px}}
