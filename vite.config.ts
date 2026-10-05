@@ -14,7 +14,7 @@ export default defineConfig({
         id: './',
         name: 'Remy Life Hub',
         short_name: 'Life Hub',
-        description: 'Sport, méditation et projets dans une seule application',
+        description: 'Sport, méditation et guitare dans une seule application',
         lang: 'fr-FR',
         theme_color: '#0f172a',
         background_color: '#0f172a',
@@ -28,7 +28,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,m4a}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,m4a,wav}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         cleanupOutdatedCaches: true,
       },

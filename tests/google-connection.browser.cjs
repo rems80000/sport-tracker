@@ -23,7 +23,7 @@ const assert = require('node:assert/strict')
     const dialog = page.getByRole('dialog', { name: 'Ta connexion Google' })
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 })
-      for (const route of ['/hub', '/', '/presence', '/karate', '/projets', '/parametres']) {
+      for (const route of ['/hub', '/', '/presence', '/guitare', '/karate', '/projets', '/parametres']) {
         await page.goto(base + route)
         await bar.getByRole('button', { name: 'Connecter Google', exact: true }).waitFor()
         assert.equal(await dialog.isVisible(), false)

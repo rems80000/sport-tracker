@@ -1,3 +1,4 @@
+import { TasksRoutine } from '../components/TasksRoutine'
 import { useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { useDriveSync } from '../store/driveSyncContext'
@@ -70,6 +71,7 @@ export function Settings() {
   return (
     <div className="flex flex-col gap-6 pb-[130px] pt-4 px-6 lg:px-8 max-w-[1400px] mx-auto w-full">
       <h1 className="text-2xl font-bold text-white">Réglages</h1>
+      <TasksRoutine />
 
       {/* Theme selector */}
       <section>

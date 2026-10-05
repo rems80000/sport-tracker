@@ -1,5 +1,7 @@
+import { AUDIO_REQUEST_EVENT, AUDIO_PAUSE_EVENT, DEFAULT_SPOTIFY_URL, SPOON_STATIONS, spotifyEmbedUrl } from '../data/audioSources'
+import type { AudioRequest } from '../data/audioSources'
 import { ChevronDown, ChevronUp, ExternalLink, LogIn, Music2, Radio, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 
 type AudioSource = 'spoon' | 'spotify'
@@ -8,36 +10,12 @@ const SOURCE_KEY = 'life_hub_audio_source_v1'
 const STATION_KEY = 'life_hub_spoon_station_v1'
 const SPOTIFY_KEY = 'life_hub_spotify_url_v1'
 const PLAYER_OPEN_KEY = 'life_hub_audio_player_open_v1'
-const DEFAULT_SPOTIFY_URL = 'https://open.spotify.com/playlist/37i9dQZF1DWXRqgorJj26U'
 
-const SPOON_STATIONS = [
-  { id: 'rock', label: 'Radio Rock', detail: 'MP3 · 192 kbit/s', url: 'https://spoonradio.ice.infomaniak.ch/spoonradio-hd.mp3', type: 'audio/mpeg' },
-  { id: 'classics', label: 'Rock Classics', detail: 'HD AAC', url: 'https://spoonradioclassicrock.ice.infomaniak.ch/spoon-classicrock-hd.aac', type: 'audio/aac' },
-  { id: 'ballads', label: 'Rock Ballads', detail: 'HD AAC', url: 'https://spoonradiorockballads.ice.infomaniak.ch/spoon-rockballads-hd.aac', type: 'audio/aac' },
-  { id: 'hard-rock', label: 'Hard Rock', detail: 'HD AAC', url: 'https://spoonradiohardrock.ice.infomaniak.ch/spoon-hardrock-hd.aac', type: 'audio/aac' },
-  { id: 'alternative', label: 'Alternative Rock', detail: 'HD AAC', url: 'https://spoonradioalternativerock.ice.infomaniak.ch/spoon-alternativerock-hd.aac', type: 'audio/aac' },
-  { id: 'acoustic', label: 'Acoustic Rock', detail: 'HD AAC', url: 'https://spoonradioacousticrock.ice.infomaniak.ch/spoon-acousticrock-hd.aac', type: 'audio/aac' },
-  { id: 'modern', label: 'Modern Rock', detail: 'HD AAC', url: 'https://spoonradiomodernrock.ice.infomaniak.ch/spoon-modernrock-hd.aac', type: 'audio/aac' },
-] as const
 
 function savedValue(key: string, fallback: string) {
   try { return localStorage.getItem(key) ?? fallback } catch { return fallback }
 }
 
-function spotifyEmbedUrl(value: string): string | null {
-  const trimmed = value.trim()
-  const uri = trimmed.match(/^spotify:(playlist|album|track|artist|show|episode):([A-Za-z0-9]+)$/)
-  if (uri) return `https://open.spotify.com/embed/${uri[1]}/${uri[2]}?utm_source=generator&theme=0`
-
-  try {
-    const url = new URL(trimmed)
-    if (url.hostname !== 'open.spotify.com') return null
-    const match = url.pathname.match(/^\/(playlist|album|track|artist|show|episode)\/([A-Za-z0-9]+)/)
-    return match ? `https://open.spotify.com/embed/${match[1]}/${match[2]}?utm_source=generator&theme=0` : null
-  } catch {
-    return null
-  }
-}
 
 export function SpoonPlayer() {
   const [source, setSource] = useState<AudioSource>(() => savedValue(SOURCE_KEY, 'spoon') === 'spotify' ? 'spotify' : 'spoon')
@@ -49,6 +27,111 @@ export function SpoonPlayer() {
   const [open, setOpen] = useState(() => savedValue(PLAYER_OPEN_KEY, '1') !== '0')
   const station = SPOON_STATIONS.find(item => item.id === stationId) ?? SPOON_STATIONS[0]
   const embedUrl = spotifyEmbedUrl(spotifyUrl) ?? spotifyEmbedUrl(DEFAULT_SPOTIFY_URL)!
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (source !== 'spoon' || !audio) return
+    let wantsPlayback = false
+    let disposed = false
+    let retryDelay = 1000
+    let lastTime = audio.currentTime
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+
+    function clearRetry() {
+      clearTimeout(retryTimer)
+      retryTimer = undefined
+    }
+
+    function scheduleRetry(delay: number) {
+      if (!wantsPlayback || retryTimer !== undefined) return
+      retryTimer = setTimeout(() => {
+        retryTimer = undefined
+        if (!wantsPlayback || disposed) return
+        audio!.load()
+        lastTime = 0
+        retryDelay = Math.min(retryDelay * 2, 30000)
+        scheduleRetry(15000 + retryDelay)
+        void audio!.play().catch(error => {
+          if (disposed || !wantsPlayback) return
+          if (error.name === 'NotAllowedError') {
+            wantsPlayback = false
+            clearRetry()
+          }
+        })
+      }, delay)
+    }
+
+    function onPlay() {
+      wantsPlayback = true
+      scheduleRetry(15000)
+    }
+
+    function onProgress() {
+      if (audio!.paused || audio!.currentTime === lastTime) return
+      lastTime = audio!.currentTime
+      retryDelay = 1000
+      clearRetry()
+      scheduleRetry(15000)
+    }
+
+    function onPause() {
+      // Ignore queued events from reloading or an interrupted live stream.
+      if (!audio!.paused || audio!.error || audio!.ended) return
+      wantsPlayback = false
+      clearRetry()
+    }
+
+    function onFailure() {
+      clearRetry()
+      scheduleRetry(retryDelay)
+    }
+
+    function onOnline() {
+      if (wantsPlayback) onFailure()
+    }
+
+    audio.addEventListener('play', onPlay)
+    audio.addEventListener('timeupdate', onProgress)
+    audio.addEventListener('pause', onPause)
+    audio.addEventListener('error', onFailure, true) // Includes errors from <source>.
+    audio.addEventListener('ended', onFailure)
+    window.addEventListener('online', onOnline)
+    return () => {
+      disposed = true
+      clearRetry()
+      audio.removeEventListener('play', onPlay)
+      audio.removeEventListener('timeupdate', onProgress)
+      audio.removeEventListener('pause', onPause)
+      audio.removeEventListener('error', onFailure, true)
+      audio.removeEventListener('ended', onFailure)
+      window.removeEventListener('online', onOnline)
+      audio.pause()
+    }
+  }, [source, station.id])
+
+  useEffect(() => {
+    function requested(event: Event) {
+      const request = (event as CustomEvent<AudioRequest>).detail
+      if (request.source === 'spoon') {
+        if (!SPOON_STATIONS.some(station => station.id === request.stationId)) return
+        setStationId(request.stationId)
+        try { localStorage.setItem(STATION_KEY, request.stationId) } catch { /* optional */ }
+      } else {
+        if (!spotifyEmbedUrl(request.url)) return
+        setSpotifyUrl(request.url)
+        setSpotifyDraft(request.url)
+        try { localStorage.setItem(SPOTIFY_KEY, request.url) } catch { /* optional */ }
+      }
+      setSource(request.source)
+      setOpen(true)
+      try { localStorage.setItem(SOURCE_KEY, request.source); localStorage.setItem(PLAYER_OPEN_KEY, '1') } catch { /* optional */ }
+    }
+    function pause(event: Event) { if (event instanceof CustomEvent && event.detail === audioRef.current) return; audioRef.current?.pause(); setSpotifyFrameKey(key => key + 1) }
+    window.addEventListener(AUDIO_REQUEST_EVENT, requested)
+    window.addEventListener(AUDIO_PAUSE_EVENT, pause)
+    return () => { window.removeEventListener(AUDIO_REQUEST_EVENT, requested); window.removeEventListener(AUDIO_PAUSE_EVENT, pause) }
+  }, [])
 
   function chooseSource(next: AudioSource) {
     setSource(next)
@@ -111,7 +194,7 @@ export function SpoonPlayer() {
           <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
             {SPOON_STATIONS.map(item => <button type="button" key={item.id} onClick={() => chooseStation(item.id)} className={`whitespace-nowrap rounded-full border px-2.5 py-1.5 text-[10px] font-black transition ${station.id === item.id ? 'border-rose-400 bg-rose-500 text-white' : 'border-white/10 bg-white/5 text-slate-400 hover:border-rose-500/50 hover:text-white'}`}>{item.label.replace('Radio ', '').replace('Rock ', '')}</button>)}
           </div>
-          <audio key={station.id} controls preload="none" className="h-10 w-full" aria-label={`Lecteur Spoon ${station.label}`}>
+          <audio onPlay={() => window.dispatchEvent(new CustomEvent(AUDIO_PAUSE_EVENT, { detail: audioRef.current }))} ref={audioRef} key={station.id} controls preload="none" className="h-10 w-full" aria-label={`Lecteur Spoon ${station.label}`}>
             <source src={station.url} type={station.type} />
             Votre navigateur ne prend pas en charge la lecture audio.
           </audio>

@@ -1,4 +1,4 @@
-import { ArrowRight, Brain, CheckCircle2, Cloud, Download, Dumbbell, Inbox, Smartphone } from 'lucide-react'
+import { ArrowRight, Brain, CheckCircle2, Cloud, Download, Dumbbell, Guitar, Smartphone } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { loadPresenceSnapshot } from '../cloud/moduleStorage'
 import { useInstallApp } from '../pwa/installContext'
@@ -17,7 +17,7 @@ export function HubHome() {
       <div className="mx-auto max-w-6xl">
         <p className="text-xs font-bold uppercase tracking-[0.25em] text-indigo-300">Remy Life Hub</p>
         <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-5xl">Votre espace, sans dispersion.</h1>
-        <p className="mt-3 max-w-2xl text-sm text-slate-400 sm:text-base">Bouger, respirer et faire avancer vos projets depuis une seule application.</p>
+        <p className="mt-3 max-w-2xl text-sm text-slate-400 sm:text-base">Bouger, respirer et jouer de la guitare depuis une seule application.</p>
         {!appInstall.installed && (
           <section className="mt-6 flex flex-col gap-4 rounded-3xl border border-blue-400/25 bg-gradient-to-r from-blue-600/20 via-indigo-600/15 to-slate-900/70 p-4 shadow-2xl shadow-blue-950/20 sm:flex-row sm:items-center sm:p-5">
             <span className="grid h-12 w-12 flex-none place-items-center rounded-2xl bg-blue-500 text-white shadow-lg shadow-blue-950/50"><Smartphone size={24} /></span>
@@ -32,16 +32,15 @@ export function HubHome() {
             )}
           </section>
         )}
-        <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <ModuleCard to="/" icon={Dumbbell} title="TRAINHARD" eyebrow="Corps" color="indigo" description={lastSport ? `Dernière séance : ${new Date(lastSport.date).toLocaleDateString('fr-FR')}` : 'Votre programme sportif maison'} metric={`${state.sessions.length} séances enregistrées`} />
           <ModuleCard to="/presence" icon={Brain} title="Présent" eyebrow="Esprit" color="emerald" description="Méditations guidées, respiration et ambiances" metric={`${presence.history.length} séances méditées`} />
-          <ModuleCard to="/karate" icon={Dumbbell} title="KARATÉ" eyebrow="Dojo" color="amber" description="Fiches, préparation et corrections de David" metric="6 fondamentaux · vos repères de cours" />
-          <ModuleCard to="/projets" icon={Inbox} title="Assistant" eyebrow="Quotidien" color="amber" description="Vos demandes vocales, au bon endroit" metric="Tâches · rendez-vous · commissions · notes" />
+          <ModuleCard to="/guitare" icon={Guitar} title="Guitare" eyebrow="Musique" color="amber" description="Métronome, accordeur et tablatures défilantes" metric="Vos morceaux · Spoon · votre playlist" />
         </div>
         <section className="mt-6 rounded-2xl border border-slate-700/50 bg-slate-900/70 p-4 sm:p-5">
           <div className="flex items-center gap-3">
             <span className={`grid h-10 w-10 place-items-center rounded-xl ${drive.status === 'synced' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-blue-500/15 text-blue-400'}`}>{drive.status === 'synced' ? <CheckCircle2 size={20} /> : <Cloud size={20} />}</span>
-            <div className="min-w-0 flex-1"><p className="font-bold">Sauvegarde commune Google Drive</p><p className="truncate text-xs text-slate-500">TRAINHARD · Présent · Projets dans remy-life-hub.json</p></div>
+            <div className="min-w-0 flex-1"><p className="font-bold">Sauvegarde commune Google Drive</p><p className="truncate text-xs text-slate-500">TRAINHARD · Présent dans remy-life-hub.json · Guitare sur cet appareil</p></div>
             <Link to="/parametres" className="rounded-xl bg-slate-800 px-3 py-2 text-xs font-bold text-slate-300">Gérer</Link>
           </div>
         </section>

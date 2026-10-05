@@ -7,8 +7,8 @@ import ts from 'typescript'
 import { unpackNotes, packNotes } from '../src/voice/engine.ts'
 const compiled = ts.transpileModule(readFileSync(new URL('../src/voice/engine.ts', import.meta.url), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ES2020 } }).outputText.replace(/^export /gm, '')
 const code = compiled + readFileSync(new URL('../automation/Server.gs', import.meta.url), 'utf8')
-function setup(seed = []) {
-  const values = {}, tasks = { source: seed }, lists = [{id:'source',title:'Mes tâches'}], triggers = [], events = {}, calls = []
+function setup(seed = [], sourceTitle = 'Mes tâches') {
+  const values = {}, tasks = { source: seed }, lists = [{id:'source',title:sourceTitle}], triggers = [], events = {}, calls = []
   let sequence = 0, failSourceCompletion = false, failInsertResponse = false
   const clone = x => JSON.parse(JSON.stringify(x))
   const ctx = vm.createContext({ console, Intl, Date,
@@ -16,7 +16,7 @@ function setup(seed = []) {
     LockService: { getScriptLock:()=>({tryLock:()=>true,waitLock(){},releaseLock(){}}) },
     ScriptApp: { getProjectTriggers:()=>triggers, deleteTrigger:t=>triggers.splice(triggers.indexOf(t),1), newTrigger:name=>({timeBased:()=>({everyMinutes:()=>({create:()=>triggers.push({getHandlerFunction:()=>name})})})}) },
     Utilities: { DigestAlgorithm:{SHA_256:'sha256'}, computeDigest:(_,text)=>[...createHash('sha256').update(text).digest()] },
-    Tasks: { Tasklists: { get:()=>clone(lists[0]), list:()=>({items:clone(lists)}), insert:p=>{const list={...p,id:'list'+(++sequence)};lists.push(list);tasks[list.id]=[];return clone(list)} },
+    Tasks: { Tasklists: { get:()=>clone(lists[0]), patch:(p,id)=>Object.assign(lists.find(l=>l.id===id),p), list:()=>({items:clone(lists)}), insert:p=>{const list={...p,id:'list'+(++sequence)};lists.push(list);tasks[list.id]=[];return clone(list)} },
       Tasks: { list:(id,options)=>({items:clone(tasks[id].filter(t=>options.showCompleted||t.status!=='completed'))}),
         insert:(p,id)=>{const item={...p,id:'task'+(++sequence),status:'needsAction',updated:new Date().toISOString()};tasks[id].push(item);calls.push(['insert',id]);if(failInsertResponse&&id!=='source'){failInsertResponse=false;throw new Error('Network response lost')}return clone(item)},
         patch:(p,list,id)=>{if(failSourceCompletion&&list==='source'&&p.status==='completed'){failSourceCompletion=false;throw new Error('Transient patch failure')}const item=tasks[list].find(t=>t.id===id);Object.assign(item,p,{updated:new Date().toISOString()});calls.push(['patch',list,id,p]);return clone(item)} } },
@@ -73,4 +73,28 @@ test('creates the six extra lists once and routes explicit lists while preservin
   assert.ok(s.tasks[ids.leroy].every(t=>t.due==='2099-10-11T00:00:00.000Z'))
   assert.equal(s.tasks[ids.watchlist][0].title,'Regarder la série The Witcher')
   assert.equal(s.tasks.source[0].due,'2099-10-11T00:00:00.000Z')
+})
+
+test('renames the legacy inbox and recreates deleted lists without duplicating triggers', () => {
+  const s=setup([], 'Notes à la volée')
+  assert.equal(s.lists[0].title,'Inbox — Life Hub')
+  const oldNotes=s.values.notesListId
+  const oldLeroy=JSON.parse(s.values.extraListIds).leroy
+  s.lists.splice(s.lists.findIndex(l=>l.id===oldNotes),1)
+  s.lists.splice(s.lists.findIndex(l=>l.id===oldLeroy),1)
+  delete s.tasks[oldNotes]; delete s.tasks[oldLeroy]
+  s.ctx.installer()
+  s.add('Note : jouer de la guitare'); s.add('Commission Leroy Merlin : vis')
+  s.ctx.traiterDemandes(); s.ctx.traiterDemandes()
+  assert.notEqual(s.values.notesListId,oldNotes)
+  assert.notEqual(JSON.parse(s.values.extraListIds).leroy,oldLeroy)
+  assert.equal(s.tasks[s.values.notesListId].length,1)
+  assert.equal(s.triggers.length,1)
+})
+test('worker repairs a deleted service list without requiring a browser', () => {
+  const s=setup(); const old=s.values.serviceListId
+  s.lists.splice(s.lists.findIndex(l=>l.id===old),1); delete s.tasks[old]
+  s.ctx.traiterDemandes()
+  assert.notEqual(s.values.serviceListId,old)
+  assert.equal(JSON.parse(s.tasks[s.values.serviceListId][0].notes).active,true)
 })
