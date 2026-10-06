@@ -37,9 +37,10 @@ export async function saveMedia(file: File, expected: 'audio' | 'document'): Pro
 export async function loadMedia(id: string): Promise<Blob> {
   const db = await open()
   return new Promise((resolve, reject) => {
-    const request = db.transaction(STORE, 'readonly').objectStore(STORE).get(id)
-    request.onsuccess = () => request.result instanceof Blob ? resolve(request.result) : reject(new Error('Fichier introuvable sur cet appareil. Importez-le à nouveau.'))
-    request.onerror = () => reject(new Error('Lecture du fichier impossible.'))
+    const tx = db.transaction(STORE, 'readonly')
+    const request = tx.objectStore(STORE).get(id)
+    tx.oncomplete = () => request.result instanceof Blob ? resolve(request.result) : reject(new Error('Fichier introuvable sur cet appareil. Importez-le à nouveau.'))
+    tx.onabort = tx.onerror = () => reject(new Error('Lecture du fichier impossible. Réessayez.'))
   })
 }
 export async function deleteMedia(id: string): Promise<void> {
