@@ -20,7 +20,9 @@ async function runRequest<T>(mode: IDBTransactionMode, action: (store: IDBObject
     return await new Promise<T>((resolve, reject) => {
       const transaction = database.transaction(STORE_NAME, mode)
       const request = action(transaction.objectStore(STORE_NAME))
-      request.onsuccess = () => resolve(request.result)
+      // A successful request can still be rolled back before the transaction commits.
+      transaction.oncomplete = () => resolve(request.result)
+      transaction.onabort = transaction.onerror = () => reject(transaction.error ?? request.error ?? new Error('Enregistrement audio interrompu.'))
       request.onerror = () => reject(request.error)
     })
   } finally {
