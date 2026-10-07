@@ -100,7 +100,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       vibrateDevice()
     }
     wasRunning.current = timerState.running
-  }, [timerState.finished])
+  }, [timerState.finished, timerState.running])
 
   const start = useCallback((seconds: number) => dispatch({ type: 'START', seconds }), [])
   const toggle = useCallback(() => dispatch({ type: 'TOGGLE' }), [])
