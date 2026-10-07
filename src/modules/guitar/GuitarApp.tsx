@@ -88,6 +88,7 @@ function SongPanel({ song, onSave }: { song?: Song; onSave: (song: Song) => bool
     document.addEventListener('visibilitychange', hidden)
     return () => { window.removeEventListener(AUDIO_PAUSE_EVENT, stop); window.removeEventListener(AUDIO_REQUEST_EVENT, stop); document.removeEventListener('visibilitychange', hidden) }
   }, [])
+  function stopAutoScroll() { setScrolling(false); setFollowAudio(false) }
   async function importTab(file: File) {
     setUploading(true); setMessage('')
     try {
@@ -132,7 +133,7 @@ function SongPanel({ song, onSave }: { song?: Song; onSave: (song: Song) => bool
       <div className="guitar-actions"><button disabled={!hasTab || followAudio || isPdf} className="primary" onClick={() => setScrolling(!scrolling)}>{scrolling ? 'Pause du défilement' : 'Défiler la tablature'}</button><button onClick={() => { setScrolling(false); if (tab.current) tab.current.scrollTop = 0; if (audio.current) audio.current.currentTime = 0 }}>Revenir au début</button><label>Vitesse : {draft.speed} px/s<input aria-label="Vitesse de défilement" type="range" min="5" max="80" value={draft.speed} onChange={e => { const next = { ...draft, speed: Number(e.target.value) }; setDraft(next); onSave(next) }} /></label></div>
       <p className="guitar-hint">Pour Spoon et Spotify, lancez le défilement manuellement. Ajustez la vitesse ; aucune synchronisation note par note n’est supposée.</p>
       {isPdf && <p className="guitar-hint">Le PDF utilise son propre lecteur. Sur mobile, « Ouvrir en grand » ou « Télécharger » permet de le consulter si l’aperçu est indisponible. Le défilement automatique fonctionne en mode texte ou image.</p>}
-      <div ref={tab} className={isPdf ? 'guitar-document-view' : 'guitar-tab'} tabIndex={0} aria-label="Tablature" onWheel={() => setScrolling(false)} onTouchStart={() => setScrolling(false)}>{tabMode === 'file' && draft.tabFile ? <TabDocument file={draft.tabFile} zoom={zoom} /> : <pre>{draft.tab || 'Aucune tablature texte. Cliquez sur Modifier pour en ajouter une.'}</pre>}</div>
+      <div ref={tab} className={isPdf ? 'guitar-document-view' : 'guitar-tab'} tabIndex={0} aria-label="Tablature" onWheel={stopAutoScroll} onTouchStart={stopAutoScroll} onKeyDown={event => { if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) stopAutoScroll() }}>{tabMode === 'file' && draft.tabFile ? <TabDocument file={draft.tabFile} zoom={zoom} /> : <pre>{draft.tab || 'Aucune tablature texte. Cliquez sur Modifier pour en ajouter une.'}</pre>}</div>
     </>}
     {message && <p role="status" className="guitar-hint">{message}</p>}
   </div>

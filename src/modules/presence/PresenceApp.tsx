@@ -7,6 +7,7 @@ import { GuidancePlayer } from './GuidancePlayer'
 import './presence.css'
 import { createAmbience } from './RecordedAmbience'
 import { nextTipIndex, rememberTip } from './tipRotation'
+import { readAudioPreference, rememberAudioPreference } from './audioPreferences'
 
 type Page = 'today' | 'practice' | 'journey' | 'tips' | 'settings'
 type Ambience = 'rain' | 'waves' | 'forest' | 'fire' | 'stream' | 'night'
@@ -87,7 +88,7 @@ export function PresenceApp() {
   const [relaxAudio, setRelaxAudio] = useState<AudioChoice>(null)
   const [backgroundPlaying, setBackgroundPlaying] = useState(false)
   const [ambience, setAmbience] = useState<BackgroundChoice>(() => {
-    const saved = localStorage.getItem('presence_ambience_v1') as BackgroundChoice | null
+    const saved = readAudioPreference('presence_ambience_v1') as BackgroundChoice | null
     if (saved === 'custom') return saved
     return ambienceOptions.some(option => option.id === saved) ? saved as Ambience : 'forest'
   })
@@ -98,7 +99,7 @@ export function PresenceApp() {
   const [speaking, setSpeaking] = useState(false)
   const [voiceError, setVoiceError] = useState('')
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
-  const [voiceURI, setVoiceURI] = useState(() => localStorage.getItem('presence_voice_v2') ?? '')
+  const [voiceURI, setVoiceURI] = useState(() => readAudioPreference('presence_voice_v2') ?? '')
   const guidanceRef = useRef<GuidancePlayer | null>(null)
   const completedRef = useRef(false)
   const voiceRef = useRef<HTMLAudioElement>(null)
@@ -132,7 +133,7 @@ export function PresenceApp() {
   }, [])
 
   useEffect(() => {
-    localStorage.setItem('presence_voice_v2', voiceURI)
+    rememberAudioPreference('presence_voice_v2', voiceURI)
     if (guidanceRef.current) {
       guidanceRef.current.volume = voiceVolume
       guidanceRef.current.enabled = voiceEnabled
@@ -360,7 +361,7 @@ export function PresenceApp() {
 
   function changeAmbience(choice: BackgroundChoice) {
     setAmbience(choice)
-    localStorage.setItem('presence_ambience_v1', choice)
+    rememberAudioPreference('presence_ambience_v1', choice)
     backgroundAllowedRef.current = true
     startBackground(choice)
     if (!running) {
