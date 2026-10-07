@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AUDIO_PAUSE_EVENT } from '../../data/audioSources'
+import { AUDIO_PAUSE_EVENT, AUDIO_REQUEST_EVENT } from '../../data/audioSources'
 import { detectPitch, pitchLabel } from './audio'
 
 export function PracticeTools() {
@@ -81,6 +81,14 @@ export function PracticeTools() {
     return () => document.removeEventListener('visibilitychange', stop)
   }, [])
 
+  useEffect(() => {
+    if (!tuning) return
+    const stop = () => { setTuning(false); setFrequency(null) }
+    window.addEventListener(AUDIO_PAUSE_EVENT, stop)
+    window.addEventListener(AUDIO_REQUEST_EVENT, stop)
+    return () => { window.removeEventListener(AUDIO_PAUSE_EVENT, stop); window.removeEventListener(AUDIO_REQUEST_EVENT, stop) }
+  }, [tuning])
+
   function tempo(value: number) {
     const next = Math.max(30, Math.min(240, Math.round(value)))
     setBpm(next)
@@ -107,7 +115,7 @@ export function PracticeTools() {
         <meter aria-label="Écart de justesse en cents" min={-50} max={50} low={-5} high={5} optimum={0} value={tuning ? pitch?.cents ?? 0 : 0} />
         <p>{tuning && pitch ? Math.abs(pitch.cents) <= 5 ? 'Accordé' : pitch.cents < 0 ? 'Tendez légèrement la corde' : 'Détendez légèrement la corde' : 'La = 440 Hz. Une seule corde à la fois, dans le calme.'}</p>
         <button className="primary" onClick={() => { setError(''); setFrequency(null); setRunning(false); if (!tuning) window.dispatchEvent(new Event(AUDIO_PAUSE_EVENT)); setTuning(!tuning) }}>{tuning ? 'Arrêter le micro' : 'Activer le micro'}</button>
-        <p className="guitar-hint">Micro traité sur cet appareil, sans enregistrement. Les outils s’arrêtent en quittant ce module ou en masquant l’application.</p>
+        <p className="guitar-hint">Micro traité sur cet appareil, sans enregistrement. La lecture d’une piste ou l’ouverture du lecteur met l’accordeur en pause. Les outils s’arrêtent en quittant ce module ou en masquant l’application.</p>
       </section>
     </div>
     {error && <p role="alert" className="guitar-error">{error}</p>}
