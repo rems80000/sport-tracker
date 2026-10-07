@@ -6,17 +6,18 @@ export function createAmbience(kind: Ambience, base: string, onError: () => void
   const master = context.createGain()
   master.gain.value = 0
   master.connect(context.destination)
+  const loading = new AbortController()
   let closed = false
   let level = 0.4
   let started = false
-  const ready = fetch(`${base}presence/ambience/${kind}.mp3`)
+  const ready = fetch(`${base}presence/ambience/${kind}.mp3`, { signal: loading.signal })
     .then(response => {
       if (!response.ok) throw new Error('Audio unavailable')
       return response.arrayBuffer()
     })
-    .then(buffer => context.decodeAudioData(buffer))
+    .then(buffer => closed ? undefined : context.decodeAudioData(buffer))
     .then(buffer => {
-      if (closed) return
+      if (closed || !buffer) return
       const source = context.createBufferSource()
       source.buffer = buffer
       source.loop = true
@@ -30,6 +31,7 @@ export function createAmbience(kind: Ambience, base: string, onError: () => void
     close: async () => {
       if (closed) return
       closed = true
+      loading.abort()
       if (context.state === 'running' && started) {
         master.gain.setTargetAtTime(0, context.currentTime, 0.06)
         await new Promise(resolve => setTimeout(resolve, 250))
