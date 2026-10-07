@@ -1,4 +1,5 @@
 import { createContext, useContext, useReducer, useEffect, useRef, useCallback } from 'react'
+import { playTimerBeep } from '../utils/timerSound'
 
 export interface TimerState {
   total: number
@@ -57,22 +58,6 @@ const TimerContext = createContext<TimerContextValue | null>(null)
 
 const INITIAL: TimerState = { total: 90, remaining: 90, running: false, finished: false }
 
-function playBeep() {
-  try {
-    const ctx = new AudioContext()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.frequency.value = 880
-    osc.type = 'sine'
-    gain.gain.setValueAtTime(0.7, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.9)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 0.9)
-  } catch { /* not supported */ }
-}
-
 function vibrateDevice() {
   if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 400])
 }
@@ -96,7 +81,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (timerState.finished && !wasRunning.current) return
     if (timerState.finished) {
-      playBeep()
+      playTimerBeep()
       vibrateDevice()
     }
     wasRunning.current = timerState.running
