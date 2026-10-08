@@ -5,11 +5,13 @@ const STORE_NAME = 'presence-files'
 
 function openDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
+    let blocked = false
     const request = indexedDB.open(DATABASE_NAME, 1)
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(STORE_NAME)) request.result.createObjectStore(STORE_NAME)
     }
-    request.onsuccess = () => resolve(request.result)
+    request.onblocked = () => { blocked = true; reject(new Error('Fermez les autres onglets Life Hub puis réessayez.')) }
+    request.onsuccess = () => { if (blocked) request.result.close(); else resolve(request.result) }
     request.onerror = () => reject(request.error)
   })
 }

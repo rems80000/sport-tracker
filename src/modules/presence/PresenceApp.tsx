@@ -491,7 +491,13 @@ function Settings({ sound, breathing, voiceAudio, relaxAudio, setSound, setBreat
 }
 
 function AudioFileRow({ slot, label, fileName, custom, onReplace, onReset }: { slot: PresenceAudioSlot; label: string; fileName: string; custom: boolean; onReplace: (slot: PresenceAudioSlot, file: File) => Promise<void>; onReset: (slot: PresenceAudioSlot) => Promise<void> }) {
-  return <div className="audio-file-row"><div><b>{label}</b><small title={fileName}>{fileName}</small></div><div className="audio-actions"><label className="audio-button">{custom ? 'Remplacer' : 'Choisir'}<input className="audio-picker" type="file" accept="audio/*,.m4a,.mp3,.wav,.ogg" onChange={event => { const file = event.target.files?.[0]; if (file) void onReplace(slot, file); event.target.value = '' }} /></label>{custom && <button className="audio-reset" onClick={() => void onReset(slot)}>Réinitialiser</button>}</div></div>
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  async function apply(action: () => Promise<void>) {
+    setError(''); setBusy(true)
+    try { await action() } catch (caught) { setError(caught instanceof Error ? caught.message : 'Stockage audio indisponible. Réessayez.') } finally { setBusy(false) }
+  }
+  return <div className="audio-file-row"><div><b>{label}</b><small title={fileName}>{fileName}</small>{error && <p role="alert">{error}</p>}{busy && <small role="status">Enregistrement en cours…</small>}</div><div className="audio-actions"><label className="audio-button">{custom ? 'Remplacer' : 'Choisir'}<input disabled={busy} className="audio-picker" type="file" accept="audio/*,.m4a,.mp3,.wav,.ogg" onChange={event => { const file = event.target.files?.[0]; if (file) void apply(() => onReplace(slot, file)); event.target.value = '' }} /></label>{custom && <button disabled={busy} className="audio-reset" onClick={() => void apply(() => onReset(slot))}>Réinitialiser</button>}</div></div>
 }
 
 function Setting({ label, detail, value, onChange }: { label: string; detail: string; value: boolean; onChange: (v: boolean) => void }) { return <div className="setting-row"><div><b>{label}</b><small>{detail}</small></div><button role="switch" aria-checked={value} className={value ? 'switch on' : 'switch'} onClick={() => onChange(!value)}><span /></button></div> }
