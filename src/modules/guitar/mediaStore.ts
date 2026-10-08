@@ -2,15 +2,19 @@ export interface StoredMediaRef { id: string; name: string; kind: 'audio' | 'pdf
 const STORE = 'files'
 let database: Promise<IDBDatabase> | undefined
 function open(): Promise<IDBDatabase> {
-  if (!database) database = new Promise((resolve, reject) => {
-    if (!globalThis.indexedDB) { reject(new Error('Le stockage des fichiers est indisponible sur cet appareil.')); return }
-    let blocked = false
-    const request = indexedDB.open('life_hub_guitar_media_v1', 1)
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE)
-    request.onerror = () => { database = undefined; reject(new Error('Impossible d’ouvrir le stockage des fichiers.')) }
-    request.onblocked = () => { blocked = true; database = undefined; reject(new Error('Fermez les autres onglets Life Hub puis réessayez.')) }
-    request.onsuccess = () => { if (blocked) { request.result.close(); return }; request.result.onversionchange = () => { request.result.close(); database = undefined }; resolve(request.result) }
-  })
+  if (!database) {
+    database = new Promise((resolve, reject) => {
+      if (!globalThis.indexedDB) { reject(new Error('Le stockage des fichiers est indisponible sur cet appareil.')); return }
+      let blocked = false
+      const request = indexedDB.open('life_hub_guitar_media_v1', 1)
+      request.onupgradeneeded = () => request.result.createObjectStore(STORE)
+      request.onerror = () => { database = undefined; reject(new Error('Impossible d’ouvrir le stockage des fichiers.')) }
+      request.onblocked = () => { blocked = true; database = undefined; reject(new Error('Fermez les autres onglets Life Hub puis réessayez.')) }
+      request.onsuccess = () => { if (blocked) { request.result.close(); return }; request.result.onversionchange = () => { request.result.close(); database = undefined }; resolve(request.result) }
+      })
+    const opening = database
+    void opening.catch(() => { if (database === opening) database = undefined })
+  }
   return database
 }
 export function mediaKind(file: Pick<File, 'name' | 'type' | 'size'>): StoredMediaRef['kind'] {
