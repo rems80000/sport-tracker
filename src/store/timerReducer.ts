@@ -16,6 +16,7 @@ type TimerAction =
 export function timerReducer(state: TimerState, action: TimerAction): TimerState {
   switch (action.type) {
     case 'START':
+      if (!Number.isSafeInteger(action.seconds) || action.seconds <= 0) return state
       return { total: action.seconds, remaining: action.seconds, running: true, finished: false }
     case 'TICK': {
       if (!state.running || state.remaining <= 0) return state
