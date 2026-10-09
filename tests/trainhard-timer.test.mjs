@@ -43,3 +43,14 @@ test('normal ticking, pause, resume and reset remain consistent', () => {
   assert.deepEqual(ended, { total: 2, remaining: 0, running: false, finished: true })
   assert.deepEqual(timerReducer(ended, { type: 'RESET', seconds: 60 }), { total: 60, remaining: 60, running: false, finished: false })
 })
+
+
+test('invalid custom durations preserve the current rest', () => {
+  for (const running of [true, false]) {
+    const current = { total: 90, remaining: 30, running, finished: false }
+    for (const seconds of [0, -15, 1.5, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+      assert.equal(timerReducer(current, { type: 'START', seconds }), current)
+    }
+    assert.deepEqual(timerReducer(current, { type: 'START', seconds: 45 }), { total: 45, remaining: 45, running: true, finished: false })
+  }
+})

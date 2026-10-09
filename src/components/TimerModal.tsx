@@ -14,6 +14,8 @@ export function TimerModal({ onClose }: { onClose: () => void }) {
   const { timerState, start, toggle, skip, adjust, reset } = useTimer()
   const { remaining, running, finished, total } = timerState
   const [custom, setCustom] = useState('')
+  const customSeconds = Number(custom)
+  const validCustom = Number.isSafeInteger(customSeconds) && customSeconds > 0
 
   const progress = total > 0 ? (total - remaining) / total : 0
   const timeColor = finished ? '#4ade80' : remaining <= 10 && running ? '#fb923c' : '#ffffff'
@@ -56,14 +58,16 @@ export function TimerModal({ onClose }: { onClose: () => void }) {
 
         <div className="flex items-center gap-2 mb-4">
           <input
-            type="number" inputMode="numeric" value={custom}
+            type="number" inputMode="numeric" min="1" step="1" value={custom}
+            aria-label="Durée personnelle en secondes (entier positif)"
             onChange={e => setCustom(e.target.value)}
             placeholder="Durée perso (s)"
             className="flex-1 bg-slate-800 rounded-xl px-3 py-2 text-white text-sm text-center placeholder:text-slate-600"
           />
           <button
-            onClick={() => { if (custom) { start(parseInt(custom)); setCustom('') } }}
-            className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold active:scale-95 transition-transform"
+            disabled={!validCustom}
+            onClick={() => { if (validCustom) { start(customSeconds); setCustom('') } }}
+            className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Go
           </button>
