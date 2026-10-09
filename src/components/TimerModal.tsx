@@ -29,7 +29,7 @@ export function TimerModal({ onClose }: { onClose: () => void }) {
       <div className="bg-slate-900 border border-slate-700/50 rounded-3xl w-full max-w-sm p-5">
         <div className="flex items-center justify-between mb-3">
           <p className="text-slate-300 text-sm font-bold uppercase tracking-wider">Timer repos</p>
-          <button onClick={onClose} className="p-1 text-slate-500 active:text-slate-300"><X size={16} /></button>
+          <button aria-label="Fermer le minuteur de repos" onClick={onClose} className="p-1 text-slate-500 active:text-slate-300"><X size={16} /></button>
         </div>
 
         <div className="h-1.5 bg-slate-800 rounded-full mb-4 overflow-hidden">
@@ -74,30 +74,30 @@ export function TimerModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex items-center justify-center gap-2.5">
-          <button onClick={() => adjust(-15)}
+          <button aria-label="Retirer 15 secondes de repos" onClick={() => adjust(-15)}
             className="w-11 h-11 rounded-xl bg-slate-700/60 flex flex-col items-center justify-center active:scale-95 transition-transform">
             <Minus size={13} className="text-slate-300" />
             <span className="text-slate-500 text-[9px] mt-0.5">15s</span>
           </button>
-          <button onClick={finished ? () => reset() : toggle}
+          <button aria-label={finished ? 'Réinitialiser le minuteur' : running ? 'Mettre le minuteur en pause' : 'Démarrer le minuteur'} onClick={finished ? () => reset() : toggle}
             className="w-14 h-14 rounded-2xl flex items-center justify-center active:scale-95 transition-all"
             style={{ background: btnBg }}>
             {finished ? <RotateCcw size={22} className="text-white" /> : running ? <Pause size={22} className="text-white" /> : <Play size={22} className="text-white" />}
           </button>
-          <button onClick={() => adjust(15)}
+          <button aria-label="Ajouter 15 secondes de repos" onClick={() => adjust(15)}
             className="w-11 h-11 rounded-xl bg-slate-700/60 flex flex-col items-center justify-center active:scale-95 transition-transform">
             <Plus size={13} className="text-slate-300" />
             <span className="text-slate-500 text-[9px] mt-0.5">15s</span>
           </button>
           {!finished && (
-            <button onClick={skip}
+            <button aria-label="Terminer le repos" onClick={skip}
               className="w-11 h-11 rounded-xl bg-slate-700/40 flex flex-col items-center justify-center active:scale-95 transition-transform">
               <SkipForward size={14} className="text-slate-400" />
               <span className="text-slate-600 text-[9px] mt-0.5">Skip</span>
             </button>
           )}
           {!running && !finished && (
-            <button onClick={() => reset()}
+            <button aria-label="Réinitialiser le minuteur" onClick={() => reset()}
               className="w-11 h-11 rounded-xl bg-slate-700/40 flex flex-col items-center justify-center active:scale-95 transition-transform">
               <RotateCcw size={14} className="text-slate-400" />
               <span className="text-slate-600 text-[9px] mt-0.5">Reset</span>
