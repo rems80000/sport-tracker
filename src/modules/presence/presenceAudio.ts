@@ -46,3 +46,13 @@ export async function savePresenceAudio(slot: PresenceAudioSlot, file: File) {
 export async function removePresenceAudio(slot: PresenceAudioSlot) {
   await runRequest('readwrite', store => store.delete(slot))
 }
+
+
+export async function loadPresenceAudioFiles() {
+  const [voice, relax] = await Promise.allSettled([loadPresenceAudio('voice'), loadPresenceAudio('relax')])
+  return {
+    voice: voice.status === 'fulfilled' ? voice.value : null,
+    relax: relax.status === 'fulfilled' ? relax.value : null,
+    failed: voice.status === 'rejected' || relax.status === 'rejected',
+  }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LIFE_HUB_PRESENCE_IMPORTED_EVENT, loadPresenceSnapshot, savePresenceData } from '../../cloud/moduleStorage'
-import { loadPresenceAudio, removePresenceAudio, savePresenceAudio } from './presenceAudio'
+import { loadPresenceAudioFiles, removePresenceAudio, savePresenceAudio } from './presenceAudio'
 import type { PresenceAudioSlot } from './presenceAudio'
 import { guidedSessions } from './guidedSessions'
 import { GuidancePlayer } from './GuidancePlayer'
@@ -68,6 +68,7 @@ export function PresenceApp() {
   const [history, setHistory] = useState<HistoryItem[]>(() => loadPresenceSnapshot().data.history as HistoryItem[])
   const [voiceAudio, setVoiceAudio] = useState<AudioChoice>(null)
   const [relaxAudio, setRelaxAudio] = useState<AudioChoice>(null)
+  const [audioLoadError, setAudioLoadError] = useState(false)
   const [backgroundPlaying, setBackgroundPlaying] = useState(false)
   const [ambience, setAmbience] = useState<BackgroundChoice>(() => {
     const saved = readAudioPreference('presence_ambience_v1') as BackgroundChoice | null
@@ -135,7 +136,7 @@ export function PresenceApp() {
 
   useEffect(() => {
     let cancelled = false
-    void Promise.all([loadPresenceAudio('voice'), loadPresenceAudio('relax')]).then(([voice, relax]) => {
+    void loadPresenceAudioFiles().then(({ voice, relax, failed }) => {
       if (cancelled) {
         if (voice?.url) URL.revokeObjectURL(voice.url)
         if (relax?.url) URL.revokeObjectURL(relax.url)
@@ -143,7 +144,8 @@ export function PresenceApp() {
       }
       setVoiceAudio(voice)
       setRelaxAudio(relax)
-    }).catch(() => undefined)
+      setAudioLoadError(failed)
+    })
     return () => { cancelled = true }
   }, [])
 
@@ -389,6 +391,7 @@ export function PresenceApp() {
         {page === 'practice' && <Practice selected={selected} onChoose={choose} onBegin={begin} />}
         {page === 'journey' && <Journey history={history} totalMinutes={totalMinutes} />}
         {page === 'tips' && <Tips index={tipIndex} onNext={() => setTipIndex(index => (index + 1) % tips.length)} />}
+        {page === 'settings' && audioLoadError && <p role="alert" className="audio-device-note">Certains fichiers audio personnels n’ont pas pu être chargés. Aucun fichier n’a été effacé. Rechargez la page pour réessayer.</p>}
         {page === 'settings' && <Settings sound={sound} breathing={breathing} voiceAudio={voiceAudio} relaxAudio={relaxAudio} setSound={setSound} setBreathing={setBreathing} onReplaceAudio={replaceAudio} onResetAudio={resetAudio} clearHistory={() => { setHistory([]); savePresenceData({ history: [] }) }} />}
       </main>
 

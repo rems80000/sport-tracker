@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { savePresenceAudio, loadPresenceAudio } from '../src/modules/presence/presenceAudio.ts'
+import { savePresenceAudio, loadPresenceAudio, loadPresenceAudioFiles } from '../src/modules/presence/presenceAudio.ts'
 
 function setup() {
   const transactions=[]
@@ -61,4 +61,36 @@ test('a committed read returns the file and an empty slot remains empty',async()
   state.transactions[1].tx.oncomplete()
   assert.equal(await missing,null)
   assert.equal(state.closed,2)
+})
+
+
+for (const failedSlot of [0, 1]) {
+  test('a failed personal audio read preserves the other readable slot: ' + failedSlot, async () => {
+    const state = setup()
+    const loading = loadPresenceAudioFiles()
+    await new Promise(resolve => setImmediate(resolve))
+    const rejected = state.transactions[failedSlot]
+    rejected.tx.error = new Error('Read interrupted')
+    rejected.tx.onabort()
+    const successSlot = 1 - failedSlot
+    const readable = state.transactions[successSlot]
+    readable.request.result = new File(['test'], 'available.mp3')
+    readable.tx.oncomplete()
+    const result = await loading
+    const success = successSlot === 0 ? result.voice : result.relax
+    assert.equal(success.name, 'available.mp3')
+    assert.equal(failedSlot === 0 ? result.voice : result.relax, null)
+    assert.equal(result.failed, true)
+    assert.equal(state.closed, 2)
+    URL.revokeObjectURL(success.url)
+  })
+}
+
+test('empty personal audio slots are normal and do not report a loading failure', async () => {
+  const state = setup()
+  const loading = loadPresenceAudioFiles()
+  await new Promise(resolve => setImmediate(resolve))
+  for (const { tx } of state.transactions) tx.oncomplete()
+  assert.deepEqual(await loading, { voice: null, relax: null, failed: false })
+  assert.equal(state.closed, 2)
 })
