@@ -54,3 +54,15 @@ test('invalid custom durations preserve the current rest', () => {
     assert.deepEqual(timerReducer(current, { type: 'START', seconds: 45 }), { total: 45, remaining: 45, running: true, finished: false })
   }
 })
+
+
+test('a reset after subtracting all time cannot start an empty countdown', () => {
+  const started = timerReducer({ total: 90, remaining: 90, running: false, finished: false }, { type: 'START', seconds: 30 })
+  const ended = timerReducer(timerReducer(started, { type: 'ADJUST', delta: -15 }), { type: 'ADJUST', delta: -15 })
+  const empty = timerReducer(ended, { type: 'RESET' })
+  assert.deepEqual(empty, { total: 0, remaining: 0, running: false, finished: false })
+  assert.equal(timerReducer(empty, { type: 'TOGGLE' }), empty)
+  const extended = timerReducer(empty, { type: 'ADJUST', delta: 15 })
+  assert.deepEqual(timerReducer(extended, { type: 'TOGGLE' }), { total: 15, remaining: 15, running: true, finished: false })
+  assert.deepEqual(timerReducer(empty, { type: 'START', seconds: 60 }), { total: 60, remaining: 60, running: true, finished: false })
+})

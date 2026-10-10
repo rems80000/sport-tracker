@@ -79,8 +79,8 @@ export function TimerModal({ onClose }: { onClose: () => void }) {
             <Minus size={13} className="text-slate-300" />
             <span className="text-slate-500 text-[9px] mt-0.5">15s</span>
           </button>
-          <button aria-label={finished ? 'Réinitialiser le minuteur' : running ? 'Mettre le minuteur en pause' : 'Démarrer le minuteur'} onClick={finished ? () => reset() : toggle}
-            className="w-14 h-14 rounded-2xl flex items-center justify-center active:scale-95 transition-all"
+          <button disabled={!finished && remaining <= 0} aria-label={finished ? 'Réinitialiser le minuteur' : running ? 'Mettre le minuteur en pause' : 'Démarrer le minuteur'} onClick={finished ? () => reset() : toggle}
+            className="w-14 h-14 rounded-2xl flex items-center justify-center active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: btnBg }}>
             {finished ? <RotateCcw size={22} className="text-white" /> : running ? <Pause size={22} className="text-white" /> : <Play size={22} className="text-white" />}
           </button>
