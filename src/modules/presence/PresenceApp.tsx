@@ -5,6 +5,7 @@ import type { PresenceAudioSlot } from './presenceAudio'
 import { guidedSessions } from './guidedSessions'
 import { GuidancePlayer } from './GuidancePlayer'
 import './presence.css'
+import { playGong } from './gong'
 import { createAmbience } from './RecordedAmbience'
 import { nextTipIndex, rememberTip } from './tipRotation'
 import { readAudioPreference, rememberAudioPreference } from './audioPreferences'
@@ -45,26 +46,6 @@ const nav = [
   { id: 'tips' as Page, label: 'Conseils', icon: '♡' },
   { id: 'settings' as Page, label: 'Réglages', icon: '⚙' },
 ]
-
-function playGong() {
-  const context = new AudioContext()
-  const master = context.createGain()
-  master.gain.setValueAtTime(0.0001, context.currentTime)
-  master.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.025)
-  master.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 3.2)
-  master.connect(context.destination)
-  ;[196, 392, 588].forEach((frequency, index) => {
-    const oscillator = context.createOscillator()
-    const partial = context.createGain()
-    oscillator.type = 'sine'
-    oscillator.frequency.value = frequency
-    partial.gain.value = 1 / (index + 1)
-    oscillator.connect(partial).connect(master)
-    oscillator.start()
-    oscillator.stop(context.currentTime + 3.25)
-  })
-  window.setTimeout(() => void context.close(), 3500)
-}
 
 function formatTime(value: number) {
   const min = Math.floor(value / 60)
