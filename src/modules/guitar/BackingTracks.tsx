@@ -4,18 +4,8 @@ import { BUILTIN_BACKINGS } from './backingCatalog'
 import { deleteMedia, saveMedia } from './mediaStore'
 import type { StoredMediaRef } from './mediaStore'
 import { useMediaUrl } from './useMediaUrl'
-
-interface PersonalBacking { id: string; title: string; key: string; file: StoredMediaRef }
-const STORAGE_KEY = 'life_hub_guitar_backings_v1'
-function loadBackings(): { tracks: PersonalBacking[]; error: string } {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { tracks: [], error: '' }
-    const tracks = JSON.parse(raw)
-    if (!Array.isArray(tracks) || !tracks.every(t => typeof t.id === 'string' && typeof t.title === 'string' && typeof t.key === 'string' && typeof t.file?.id === 'string' && t.file.kind === 'audio')) throw Error()
-    return { tracks, error: '' }
-  } catch { return { tracks: [], error: 'La liste des pistes personnelles n’a pas pu être lue. Aucun fichier n’a été effacé.' } }
-}
+import { loadBackings, saveBackings } from './backingStorage'
+import type { PersonalBacking } from './backingStorage'
 
 export function BackingTracks() {
   const [initial] = useState(loadBackings)
@@ -47,13 +37,14 @@ export function BackingTracks() {
     return () => { element?.pause(); window.removeEventListener(AUDIO_PAUSE_EVENT, stop); window.removeEventListener(AUDIO_REQUEST_EVENT, stop); document.removeEventListener('visibilitychange', hidden) }
   }, [url])
   async function importTrack(file: File) {
+    if (initial.error) return
     setBusy(true); setError('')
     let stored: StoredMediaRef | undefined
     try {
       stored = await saveMedia(file, 'audio')
       const track: PersonalBacking = { id: stored.id, title: file.name.replace(/\.[^.]+$/, ''), key: key.trim(), file: stored }
       const next = [...personal, track]
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      saveBackings(next)
       setPersonal(next); setSelected(track.id)
     } catch (caught) { if (stored) await deleteMedia(stored.id).catch(() => {}); setError(caught instanceof Error ? caught.message : 'Import impossible.') } finally { setBusy(false) }
   }
@@ -62,7 +53,7 @@ export function BackingTracks() {
     setBusy(true); setError('')
     try {
       const next = personal.filter(t => t.id !== imported.id)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      saveBackings(next)
       audio.current?.pause(); setPersonal(next); setSelected(BUILTIN_BACKINGS[0].id)
       await deleteMedia(imported.file.id)
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Suppression impossible.') } finally { setBusy(false) }
@@ -74,9 +65,9 @@ export function BackingTracks() {
     <audio key={url} ref={audio} src={url || undefined} preload="metadata" controls loop={loop} aria-label="Lecteur backing track" onPlay={() => window.dispatchEvent(new CustomEvent(AUDIO_PAUSE_EVENT, { detail: audio.current }))} onError={() => setError('Cette piste ne peut pas être lue. Essayez un fichier MP3 ou WAV.')}/>
     <div className="guitar-actions"><label className="guitar-follow"><input type="checkbox" checked={loop} onChange={e => setLoop(e.target.checked)} /> Répéter en boucle</label><label>Vitesse<select aria-label="Vitesse backing track" value={rate} onChange={e => setRate(Number(e.target.value))}>{[.75, .9, 1, 1.1, 1.25].map(n => <option key={n} value={n}>{n}×{builtin ? ` · ${Math.round(builtin.bpm * n)} BPM` : ''}</option>)}</select></label></div>
     {builtin && <details className="guitar-scale"><summary>Pentatonique {builtin.key.toLowerCase()} · {builtin.notes}</summary><p className="guitar-hint">Une position pour commencer : montez et descendez lentement. Cherchez à terminer vos phrases sur {builtin.notes.split(' · ')[0]}.</p><pre>{builtin.tab}</pre></details>}
-    <details className="guitar-import"><summary>Ajouter mes propres backing tracks</summary><p className="guitar-hint">Importez un fichier audio (40 Mo maximum). Il reste sur cet appareil et sera lisible hors ligne. Gardez aussi votre fichier d’origine : effacer les données du navigateur efface les imports.</p><div className="guitar-editor"><label>Tonalité de ma piste (facultatif)<input value={key} onChange={e => setKey(e.target.value)} maxLength={60} placeholder="Ex. : La mineur" /></label><label>Importer une piste<input disabled={busy} type="file" accept=".mp3,.wav,.ogg,.m4a,.aac,.flac,.webm,audio/*" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importTrack(file) }} /></label></div></details>
+    <details className="guitar-import"><summary>Ajouter mes propres backing tracks</summary><p className="guitar-hint">Importez un fichier audio (40 Mo maximum). Il reste sur cet appareil et sera lisible hors ligne. Gardez aussi votre fichier d’origine : effacer les données du navigateur efface les imports.</p><div className="guitar-editor"><label>Tonalité de ma piste (facultatif)<input value={key} onChange={e => setKey(e.target.value)} maxLength={60} placeholder="Ex. : La mineur" /></label><label>Importer une piste<input disabled={busy || !!initial.error} type="file" accept=".mp3,.wav,.ogg,.m4a,.aac,.flac,.webm,audio/*" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importTrack(file) }} /></label></div></details>
     {imported && <button disabled={busy} onClick={() => void remove()}>Retirer cette piste de l’application</button>}
-    {(error || media.error) && <p role="alert" className="guitar-error">{error || media.error}</p>}
+    {(initial.error || error || media.error) && <p role="alert" className="guitar-error">{initial.error || error || media.error}{initial.error && " Les imports sont suspendus. Rechargez la page pour réessayer."}</p>}
     {busy && <p role="status" className="guitar-hint">Enregistrement du fichier…</p>}
   </section>
 }
