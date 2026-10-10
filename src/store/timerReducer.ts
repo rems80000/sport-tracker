@@ -26,6 +26,7 @@ export function timerReducer(state: TimerState, action: TimerAction): TimerState
     }
     case 'TOGGLE':
       if (state.finished) return { ...state, remaining: state.total, running: false, finished: false }
+      if (state.remaining <= 0) return state
       return { ...state, running: !state.running }
     case 'SKIP':
       return { ...state, remaining: 0, running: false, finished: true }
