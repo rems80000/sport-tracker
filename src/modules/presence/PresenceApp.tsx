@@ -6,6 +6,8 @@ import { guidedSessions } from './guidedSessions'
 import { GuidancePlayer } from './GuidancePlayer'
 import './presence.css'
 import { playGong } from './gong'
+import { createScreenWakeLock } from './screenWakeLock'
+import type { WakeLockHandle } from './screenWakeLock'
 import { createAmbience } from './RecordedAmbience'
 import { nextTipIndex, rememberTip } from './tipRotation'
 import { readAudioPreference, rememberAudioPreference } from './audioPreferences'
@@ -17,7 +19,6 @@ type GuidanceStep = { at: number; text: string }
 type Session = { id: string; title: string; subtitle: string; description: string; minutes: number; tone: string; icon: string; audio?: string; voiceGuided?: boolean; ambience: Ambience; guidance: GuidanceStep[] }
 type HistoryItem = { id: number; title: string; minutes: number; date: string }
 type AudioChoice = { name: string; url: string } | null
-type WakeLockHandle = { released: boolean; release: () => Promise<void> }
 
 const sessions: Session[] = [
   ...guidedSessions,
@@ -88,7 +89,6 @@ export function PresenceApp() {
   const voiceEndedRef = useRef(false)
   const ambienceRef = useRef<ReturnType<typeof createAmbience> | null>(null)
   const endAtRef = useRef<number | null>(null)
-  const wakeLockRef = useRef<WakeLockHandle | null>(null)
   const backgroundAllowedRef = useRef(true)
 
   useEffect(() => {
@@ -176,18 +176,15 @@ export function PresenceApp() {
 
   useEffect(() => {
     const wakeNavigator = navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<WakeLockHandle> } }
-    const requestWakeLock = async () => {
-      if (!active || !running || !keepAwake || document.visibilityState !== 'visible' || !wakeNavigator.wakeLock) return
-      if (wakeLockRef.current && !wakeLockRef.current.released) return
-      try { wakeLockRef.current = await wakeNavigator.wakeLock.request('screen') } catch { /* Android peut refuser en économie d'énergie */ }
-    }
-    const handleVisibility = () => { if (document.visibilityState === 'visible') void requestWakeLock() }
-    void requestWakeLock()
-    document.addEventListener('visibilitychange', handleVisibility)
+    const wakeLock = wakeNavigator.wakeLock
+    if (!active || !running || !keepAwake || !wakeLock) return
+    const screenLock = createScreenWakeLock(() => wakeLock.request('screen'))
+    const requestIfVisible = () => { if (document.visibilityState === 'visible') void screenLock.request() }
+    requestIfVisible()
+    document.addEventListener('visibilitychange', requestIfVisible)
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibility)
-      if (wakeLockRef.current && !wakeLockRef.current.released) void wakeLockRef.current.release()
-      wakeLockRef.current = null
+      document.removeEventListener('visibilitychange', requestIfVisible)
+      screenLock.dispose()
     }
   }, [active, running, keepAwake])
 
