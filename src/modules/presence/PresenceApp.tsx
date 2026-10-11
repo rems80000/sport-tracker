@@ -6,6 +6,7 @@ import { guidedSessions } from './guidedSessions'
 import { GuidancePlayer } from './GuidancePlayer'
 import './presence.css'
 import { playGong } from './gong'
+import { countPresenceDays } from './practiceDays'
 import { createScreenWakeLock } from './screenWakeLock'
 import type { WakeLockHandle } from './screenWakeLock'
 import { createAmbience } from './RecordedAmbience'
@@ -217,6 +218,7 @@ export function PresenceApp() {
   }, [seconds, selected, sound])
 
   const totalMinutes = useMemo(() => history.reduce((sum, item) => sum + item.minutes, 0), [history])
+  const presenceDays = useMemo(() => countPresenceDays(history), [history])
   const progress = 1 - seconds / (selected.minutes * 60)
 
   function begin(session = selected) {
@@ -387,9 +389,9 @@ export function PresenceApp() {
       <main>
         <header className="mobile-header"><button className="brand" onClick={() => setPage('today')}><span className="brand-mark"><i /><i /><i /></span><span>présent</span></button><button onClick={() => setPage('settings')}>R</button></header>
 
-        {page === 'today' && <Today selected={selected} history={history} totalMinutes={totalMinutes} onBegin={begin} onPractice={() => setPage('practice')} />}
+        {page === 'today' && <Today selected={selected} history={history} presenceDays={presenceDays} totalMinutes={totalMinutes} onBegin={begin} onPractice={() => setPage('practice')} />}
         {page === 'practice' && <Practice selected={selected} onChoose={choose} onBegin={begin} />}
-        {page === 'journey' && <Journey history={history} totalMinutes={totalMinutes} />}
+        {page === 'journey' && <Journey history={history} presenceDays={presenceDays} totalMinutes={totalMinutes} />}
         {page === 'tips' && <Tips index={tipIndex} onNext={() => setTipIndex(index => (index + 1) % tips.length)} />}
         {page === 'settings' && audioLoadError && <p role="alert" className="audio-device-note">Certains fichiers audio personnels n’ont pas pu être chargés. Aucun fichier n’a été effacé. Rechargez la page pour réessayer.</p>}
         {page === 'settings' && <Settings sound={sound} breathing={breathing} voiceAudio={voiceAudio} relaxAudio={relaxAudio} setSound={setSound} setBreathing={setBreathing} onReplaceAudio={replaceAudio} onResetAudio={resetAudio} clearHistory={() => { setHistory([]); savePresenceData({ history: [] }) }} />}
@@ -402,12 +404,12 @@ export function PresenceApp() {
   )
 }
 
-function Today({ selected, history, totalMinutes, onBegin, onPractice }: { selected: Session; history: HistoryItem[]; totalMinutes: number; onBegin: (s: Session) => void; onPractice: () => void }) {
+function Today({ selected, history, presenceDays, totalMinutes, onBegin, onPractice }: { selected: Session; history: HistoryItem[]; presenceDays: number; totalMinutes: number; onBegin: (s: Session) => void; onPractice: () => void }) {
   const hour = new Date().getHours()
   const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()
   const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Belle après-midi' : 'Bonsoir'
   return <div className="page today-page">
-    <section className="welcome"><div><p className="eyebrow">{today}</p><h1>{greeting}, Rémy.</h1><p>Prenez un instant pour revenir à vous.</p></div><div className="streak"><span>✦</span><b>{history.length}</b><small>jours de présence</small></div></section>
+    <section className="welcome"><div><p className="eyebrow">{today}</p><h1>{greeting}, Rémy.</h1><p>Prenez un instant pour revenir à vous.</p></div><div className="streak"><span>✦</span><b>{presenceDays}</b><small title="Jours distincts parmi les 20 dernières séances enregistrées">jours de présence</small></div></section>
     <section className="hero-card">
       <div className="hero-copy"><span className="pill">SÉANCE DU JOUR</span><h2>{selected.title}</h2><p>{selected.description}</p><div className="meta"><span>◷ {selected.minutes} min</span><span>♫ Fond sonore au choix</span></div><button className="primary" onClick={() => onBegin(selected)}><span>▶</span> Commencer la séance</button></div>
       <div className="hero-art" aria-hidden="true"><div className="sun" /><div className="hill hill-back" /><div className="hill hill-front" /><div className="meditator"><i className="head"/><i className="body"/><i className="legs"/></div><span className="leaf l1">⌁</span><span className="leaf l2">⌁</span></div>
@@ -435,8 +437,8 @@ function Practice({ selected, onChoose, onBegin }: { selected: Session; onChoose
   return <div className="page practice-page"><p className="eyebrow">BIBLIOTHÈQUE</p><h1>Choisissez votre pratique.</h1><p className="lead">Cinq nouvelles séances avec guide vocal et silences, de 5 à 10 minutes. Vos pratiques habituelles restent disponibles.</p><div className="library-grid">{sessions.map(s => <article key={s.id} className={`library-card ${s.tone} ${selected.id === s.id ? 'selected' : ''}`} onClick={() => onChoose(s)}><div className="large-icon">{s.icon}</div><div><p className="eyebrow">{s.voiceGuided ? 'GUIDE VOCAL' : s.audio ? 'AUDIO PERSONNEL' : 'REPÈRES À LIRE'} · {s.minutes} MIN</p><h2>{s.title}</h2><p>{s.description}</p><button className="round-play" aria-label={`Commencer ${s.title}`} onClick={(e) => { e.stopPropagation(); onBegin(s) }}>▶</button></div></article>)}</div></div>
 }
 
-function Journey({ history, totalMinutes }: { history: HistoryItem[]; totalMinutes: number }) {
-  return <div className="page"><p className="eyebrow">VOTRE CHEMIN</p><h1>Chaque instant compte.</h1><p className="lead">Votre pratique prend forme, respiration après respiration.</p><div className="stat-grid"><div><span>◷</span><b>{totalMinutes}</b><small>minutes méditées</small></div><div><span>◉</span><b>{history.length}</b><small>séances terminées</small></div><div><span>✦</span><b>{history.length}</b><small>jours de présence</small></div></div><section className="history-card"><h2>Vos dernières séances</h2>{history.length === 0 ? <div className="empty"><span>◌</span><h3>Votre parcours commence ici</h3><p>Terminez une séance pour la voir apparaître.</p></div> : <div className="history-list">{history.map(item => <div key={item.id}><span>✓</span><p><b>{item.title}</b><small>{new Date(item.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</small></p><em>{item.minutes} min</em></div>)}</div>}</section></div>
+function Journey({ history, presenceDays, totalMinutes }: { history: HistoryItem[]; presenceDays: number; totalMinutes: number }) {
+  return <div className="page"><p className="eyebrow">VOTRE CHEMIN</p><h1>Chaque instant compte.</h1><p className="lead">Votre pratique prend forme, respiration après respiration.</p><div className="stat-grid"><div><span>◷</span><b>{totalMinutes}</b><small>minutes méditées</small></div><div><span>◉</span><b>{history.length}</b><small>séances terminées</small></div><div><span>✦</span><b>{presenceDays}</b><small title="Jours distincts parmi les 20 dernières séances enregistrées">jours de présence</small></div></div><section className="history-card"><h2>Vos dernières séances</h2>{history.length === 0 ? <div className="empty"><span>◌</span><h3>Votre parcours commence ici</h3><p>Terminez une séance pour la voir apparaître.</p></div> : <div className="history-list">{history.map(item => <div key={item.id}><span>✓</span><p><b>{item.title}</b><small>{new Date(item.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</small></p><em>{item.minutes} min</em></div>)}</div>}</section></div>
 }
 
 const tips = [
