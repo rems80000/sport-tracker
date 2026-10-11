@@ -56,7 +56,13 @@ export function TimerModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        <div className="flex items-center gap-2 mb-4">
+        <form
+          className="flex items-center gap-2 mb-4"
+          onSubmit={e => {
+            e.preventDefault()
+            if (validCustom) { start(customSeconds); setCustom('') }
+          }}
+        >
           <input
             type="number" inputMode="numeric" min="1" step="1" value={custom}
             aria-label="Durée personnelle en secondes (entier positif)"
@@ -66,12 +72,12 @@ export function TimerModal({ onClose }: { onClose: () => void }) {
           />
           <button
             disabled={!validCustom}
-            onClick={() => { if (validCustom) { start(customSeconds); setCustom('') } }}
+            type="submit"
             className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Go
           </button>
-        </div>
+        </form>
 
         <div className="flex items-center justify-center gap-2.5">
           <button aria-label="Retirer 15 secondes de repos" onClick={() => adjust(-15)}
