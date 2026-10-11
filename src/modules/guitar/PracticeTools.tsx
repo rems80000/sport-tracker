@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AUDIO_PAUSE_EVENT, AUDIO_REQUEST_EVENT } from '../../data/audioSources'
 import { detectPitch, pitchLabel } from './audio'
+import { registerTempoTap } from './tapTempo'
 
 export function PracticeTools() {
   const [bpm, setBpm] = useState(() => {
@@ -95,9 +96,9 @@ export function PracticeTools() {
     try { localStorage.setItem('life_hub_guitar_bpm_v1', String(next)) } catch { setError('Le tempo ne peut pas être mémorisé sur cet appareil.') }
   }
   function tapTempo() {
-    const now = performance.now()
-    tap.current = [...tap.current.filter(time => now - time < 2200), now].slice(-5)
-    if (tap.current.length > 1) tempo(60000 * (tap.current.length - 1) / (now - tap.current[0]))
+    const result = registerTempoTap(tap.current, performance.now())
+    tap.current = result.taps
+    if (result.bpm !== null) tempo(result.bpm)
   }
   const pitch = frequency ? pitchLabel(frequency) : null
   return <>
