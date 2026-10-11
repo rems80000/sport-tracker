@@ -5,24 +5,11 @@ import { AUDIO_PAUSE_EVENT, AUDIO_REQUEST_EVENT, DEFAULT_SPOTIFY_URL, requestHub
 import { PracticeTools } from './PracticeTools'
 import { BackingTracks } from './BackingTracks'
 import { saveMedia } from './mediaStore'
-import type { StoredMediaRef } from './mediaStore'
+import { DEMO, initialLibrary, saveSongLibrary } from './songStorage'
+import type { Song, Source } from './songStorage'
 import { TabDocument } from './TabDocument'
 import './guitar.css'
 
-type Source = 'none' | 'spoon' | 'spotify' | 'audio'
-interface Song { id: string; title: string; artist: string; tab: string; source: Source; audioUrl: string; stationId: string; speed: number; tabFile?: StoredMediaRef }
-const LIBRARY_KEY = 'life_hub_guitar_songs_v1'
-const DEMO: Song = { id: 'exercice-cordes', title: 'Cordes à vide', artist: 'Exercice Life Hub', source: 'none', audioUrl: '', stationId: 'acoustic', speed: 18,
-  tab: ['Exercice original · lentement, une note par clic', '', ...Array.from({ length: 8 }, (_, i) => `Passage ${i + 1}\ne|--------------------0---|\nB|----------------0-------|\nG|------------0-----------|\nD|--------0---------------|\nA|----0-------------------|\nE|0-----------------------|\n`)].join('\n') }
-function initialLibrary(): { songs: Song[]; error: string } {
-  try {
-    const raw = localStorage.getItem(LIBRARY_KEY)
-    if (raw === null) return { songs: [DEMO], error: '' }
-    const songs: unknown = JSON.parse(raw)
-    if (!Array.isArray(songs) || !songs.every(s => s && typeof s.id === 'string' && typeof s.title === 'string' && typeof s.artist === 'string' && typeof s.tab === 'string' && ['none', 'spoon', 'spotify', 'audio'].includes(s.source) && typeof s.audioUrl === 'string' && typeof s.stationId === 'string' && Number.isFinite(s.speed) && s.speed >= 5 && s.speed <= 80 && (!s.tabFile || typeof s.tabFile.id === 'string' && typeof s.tabFile.name === 'string' && ['pdf', 'image'].includes(s.tabFile.kind)))) throw Error('Invalid library')
-    return { songs, error: '' }
-  } catch { return { songs: [], error: 'Bibliothèque illisible ou stockage indisponible. Aucune donnée existante n’a été écrasée.' } }
-}
 function savedPlaylist() { try { return localStorage.getItem('life_hub_spotify_url_v1') || DEFAULT_SPOTIFY_URL } catch { return DEFAULT_SPOTIFY_URL } }
 function safeAudio(url: string) { try { return new URL(url).protocol === 'https:' } catch { return false } }
 
@@ -33,7 +20,7 @@ export function GuitarApp() {
   const [error, setError] = useState(initial.error)
   function save(song: Song) {
     const next = songs.some(s => s.id === song.id) ? songs.map(s => s.id === song.id ? song : s) : [...songs, song]
-    try { localStorage.setItem(LIBRARY_KEY, JSON.stringify(next)); setSongs(next); setSelected(song.id); setError(''); return true } catch { setError('Sauvegarde impossible : espace insuffisant ou stockage bloqué. Gardez cette page ouverte et copiez votre tablature.'); return false }
+    try { saveSongLibrary(next); setSongs(next); setSelected(song.id); setError(''); return true } catch (caught) { setError(caught instanceof Error ? caught.message : 'Sauvegarde impossible : espace insuffisant ou stockage bloqué. Gardez cette page ouverte et copiez votre tablature.'); return false }
   }
   return <div className="guitar-page"><div className="guitar-layout">
     <header className="guitar-heading"><span><Guitar size={28} /></span><div><p className="guitar-kicker">Life Hub · Musique</p><h1>Un moment pour jouer.</h1><p>Accordez, trouvez le rythme, puis laissez défiler votre tablature.</p></div></header>
