@@ -125,7 +125,7 @@
 .presence-root .voice-panel button { padding: 10px 12px; border: 1px solid #abc5b9; border-radius: 10px; background: white; color: #254b41; font-size: 14px; cursor: pointer; }
 .presence-root .voice-panel button:disabled { opacity: .5; cursor: default; }
 .presence-root .voice-panel small { display: block; margin-top: 10px; font-size: 13px; line-height: 1.5; }
-.presence-root .voice-panel [role=alert] { color: #8a3428; font-size: 14px; }
+.presence-root .timer-overlay [role=alert] { color: #8a3428; font-size: 14px; }
 .presence-root .timer-overlay { padding-left: 18px; padding-right: 18px; }
 .presence-root .timer-overlay > * { flex-shrink: 0; }
 .presence-root .timer-overlay::before, .presence-root .timer-overlay::after { pointer-events: none; }
