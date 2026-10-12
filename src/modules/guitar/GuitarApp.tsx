@@ -108,7 +108,7 @@ function SongPanel({ song, onSave }: { song?: Song; onSave: (song: Song) => bool
       <label className="guitar-wide">Tablature PDF ou image<input disabled={uploading} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void importTab(file) }} /></label>
       {draft.tabFile && <div className="guitar-actions guitar-wide"><span>{draft.tabFile.name}</span><button type="button" disabled={uploading} onClick={() => { update({ tabFile: undefined }); setTabMode('text') }}>Dissocier le document</button></div>}
       {uploading && <p role="status" className="guitar-wide guitar-hint">Enregistrement de la tablature…</p>}
-      <div className="guitar-actions guitar-wide"><button disabled={uploading} className="primary">Enregistrer le morceau</button>{song && <button type="button" disabled={uploading} onClick={() => { setDraft({ ...song }); setEditing(false) }}>Annuler</button>}</div>
+      <div className="guitar-actions guitar-wide"><button disabled={uploading} className="primary">Enregistrer le morceau</button>{song && <button type="button" disabled={uploading} onClick={() => { setDraft({ ...song }); setTabMode(song.tabFile ? 'file' : 'text'); setMessage(''); setEditing(false) }}>Annuler</button>}</div>
     </form> : <>
       <div className="guitar-library-heading"><h3>{draft.title} <small>{draft.artist}</small></h3><button onClick={() => { setScrolling(false); audio.current?.pause(); setEditing(true) }}>Modifier</button></div>
       {draft.source === 'audio' && safeAudio(draft.audioUrl) && <>
