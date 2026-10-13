@@ -55,7 +55,7 @@ export function TimerModal({ onClose }: { onClose: () => void }) {
               style={{ fontSize: '64px', color: timeColor }}>
               {finished ? '✓' : formatDuration(remaining)}
             </span>
-            {finished && <p className="text-green-400 font-bold text-base mt-1">Repos terminé !</p>}
+            <div role="status" aria-atomic="true">{finished && <p className="text-green-400 font-bold text-base mt-1">Repos terminé !</p>}</div>
           </div>
 
           <div className="flex justify-center gap-1.5 mb-4">
