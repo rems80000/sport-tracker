@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Exercise, ExerciseCategory } from '../types'
 import { resolveAssetUrl } from '../utils/assets'
 
@@ -25,13 +26,16 @@ interface ExerciseImageProps {
 }
 
 export function ExerciseImage({ exercise, size = 'md', className = '' }: ExerciseImageProps) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const imageUrl = exercise.imageUrl ? resolveAssetUrl(exercise.imageUrl) : ''
   const s = SIZE[size]
   const style = exercise.category ? CATEGORY_STYLE[exercise.category] : DEFAULT_STYLE
 
-  if (exercise.imageUrl) {
+  if (imageUrl && imageUrl !== failedUrl) {
     return (
       <img
-        src={resolveAssetUrl(exercise.imageUrl)}
+        src={imageUrl}
+        onError={() => setFailedUrl(imageUrl)}
         alt={exercise.name}
         className={`${s.img} object-cover rounded-xl ring-1 ${style.ring} flex-shrink-0 ${className}`}
       />
