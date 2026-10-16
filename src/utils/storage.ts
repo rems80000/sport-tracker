@@ -130,7 +130,9 @@ export function getWeekNumber(date: Date): number {
 }
 
 export function getWeekKey(date: Date): string {
-  const year = date.getFullYear()
+  const thursday = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  thursday.setUTCDate(thursday.getUTCDate() + 4 - (thursday.getUTCDay() || 7))
+  const year = thursday.getUTCFullYear()
   const week = getWeekNumber(date)
   return `${year}-W${String(week).padStart(2, '0')}`
 }
