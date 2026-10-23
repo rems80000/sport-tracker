@@ -83,15 +83,15 @@ function SetEditRow({ set, exName, onChange }: {
     <div className="flex items-center gap-2 py-1">
       <span className="text-slate-500 text-xs min-w-[90px] truncate">{exName} S{set.setIndex + 1}</span>
       {set.reps != null && (
-        <input type="number" value={set.reps} onChange={e => onChange({ ...set, reps: parseInt(e.target.value) || 0 })}
+        <input type="number" aria-label={`${exName}, série ${set.setIndex + 1} : répétitions`} value={set.reps} onChange={e => onChange({ ...set, reps: parseInt(e.target.value) || 0 })}
           className="w-14 bg-slate-700/60 border border-slate-600/40 rounded-lg px-1.5 py-1 text-white text-xs text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
       )}
       {set.weightKg != null && (
-        <input type="number" value={set.weightKg} onChange={e => onChange({ ...set, weightKg: parseFloat(e.target.value) || 0 })}
+        <input type="number" aria-label={`${exName}, série ${set.setIndex + 1} : charge en kilogrammes`} value={set.weightKg} onChange={e => onChange({ ...set, weightKg: parseFloat(e.target.value) || 0 })}
           className="w-14 bg-slate-700/60 border border-slate-600/40 rounded-lg px-1.5 py-1 text-white text-xs text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
       )}
       {set.durationSeconds != null && (
-        <input type="number" value={set.durationSeconds} onChange={e => onChange({ ...set, durationSeconds: parseInt(e.target.value) || 0 })}
+        <input type="number" aria-label={`${exName}, série ${set.setIndex + 1} : durée en secondes`} value={set.durationSeconds} onChange={e => onChange({ ...set, durationSeconds: parseInt(e.target.value) || 0 })}
           className="w-14 bg-slate-700/60 border border-slate-600/40 rounded-lg px-1.5 py-1 text-white text-xs text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
       )}
     </div>
