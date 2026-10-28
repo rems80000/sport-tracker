@@ -1,6 +1,7 @@
 import { useStore } from '../store/useStore'
 import { SESSION_BY_ID } from '../data/program'
 import { groupSessionsByWeek } from '../utils/storage'
+import { getLatestWeights } from '../utils/progress'
 import { TrendingUp, Award, Target, Zap } from 'lucide-react'
 import { useMemo } from 'react'
 
@@ -54,7 +55,7 @@ export function Progress() {
     // Best push-up count
     let bestPushups = 0
     let bestPlank = 0
-    const lastWeights: Record<string, number> = {}
+    const lastWeights = getLatestWeights(state.sessions)
 
     for (const log of state.sessions) {
       for (const set of log.sets) {
@@ -66,10 +67,6 @@ export function Progress() {
         // Plank
         if ((set.exerciseId.includes('gainage') || set.exerciseId.includes('planche')) && set.durationSeconds) {
           bestPlank = Math.max(bestPlank, set.durationSeconds)
-        }
-        // Last weights per exercise
-        if (set.weightKg) {
-          lastWeights[set.exerciseId] = set.weightKg
         }
       }
     }
