@@ -32,10 +32,10 @@ function WeekBar({ week, count, max }: { week: string; count: number; max: numbe
   return (
     <div className="flex flex-col items-center gap-1">
       <span className="text-xs text-white font-bold">{count}</span>
-      <div className="w-8 bg-slate-700 rounded-full" style={{ height: 60 }}>
+      <div className="flex items-end w-8 bg-slate-700 rounded-full" style={{ height: 60 }}>
         <div
           className="w-full bg-indigo-500 rounded-full transition-all"
-          style={{ height: `${pct}%`, marginTop: `${100 - pct}%` }}
+          style={{ height: `${pct}%` }}
         />
       </div>
       <span className="text-xs text-slate-500">S{weekNum}</span>
